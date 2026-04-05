@@ -45,6 +45,9 @@ bzip2: libbz2.so bzip2.o
 bzip2recover: bzip2recover.o
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o bzip2recover bzip2recover.o
 
+public_api_test: libbz2.so public_api_test.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -o public_api_test public_api_test.o -L. -lbz2
+
 libbz2.a: $(OBJS)
 	rm -f libbz2.a
 	$(AR) cq libbz2.a $(OBJS)
@@ -66,11 +69,11 @@ libbz2.so.$(sominor): $(OBJS:%.o=%.sho)
 
 $(OBJS:%.o=%.sho) bzip2.sho bzip2recover.sho: %.sho: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -fPIC -o $@ -c $<
-$(OBJS) bzip2.o bzip2recover.o: %.o: %.c
+$(OBJS) bzip2.o bzip2recover.o public_api_test.o: %.o: %.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -o $@ -c $<
 
 check: test
-test: bzip2
+test: bzip2 public_api_test
 	@cat words1
 	LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH \
 	./bzip2 -1  < sample1.ref > sample1.rb2
@@ -90,6 +93,8 @@ test: bzip2
 	cmp sample1.tst sample1.ref
 	cmp sample2.tst sample2.ref
 	cmp sample3.tst sample3.ref
+	LD_LIBRARY_PATH=.:$$LD_LIBRARY_PATH \
+	./public_api_test
 	@cat words3
 
 install: bzip2 bzip2recover libbz2.a
@@ -132,7 +137,7 @@ install: bzip2 bzip2recover libbz2.a
 	echo ".so man1/bzdiff.1" > $(PREFIX)/man/man1/bzcmp.1
 
 clean: 
-	rm -f *.o *.sho libbz2.a libbz2.so* bzip2 bzip2recover \
+	rm -f *.o *.sho libbz2.a libbz2.so* bzip2 bzip2recover public_api_test \
 	sample1.rb2 sample2.rb2 sample3.rb2 \
 	sample1.tst sample2.tst sample3.tst
 
@@ -172,6 +177,7 @@ dist: check manual
 	   $(DISTNAME)/sample2.bz2 \
 	   $(DISTNAME)/sample3.bz2 \
 	   $(DISTNAME)/dlltest.c \
+	   $(DISTNAME)/public_api_test.c \
 	   $(DISTNAME)/manual.html \
 	   $(DISTNAME)/manual.pdf \
 	   $(DISTNAME)/manual.ps \

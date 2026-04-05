@@ -23,7 +23,8 @@ manual page is available as bzip2.txt.
 HOW TO BUILD -- UNIX
 
 Type 'make'.  This builds the library libbz2.a and then the programs
-bzip2 and bzip2recover.  Six self-tests are run.  If the self-tests
+bzip2 and bzip2recover.  Seven self-tests are run, including a public
+API regression binary.  If the self-tests
 complete ok, carry on to installation:
 
 To install in /usr/local/bin, /usr/local/lib, /usr/local/man and
