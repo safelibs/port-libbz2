@@ -108,6 +108,7 @@ RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.s
       mariadb-client \
       mariadb-plugin-provider-bzip2 \
       mariadb-server \
+      mkvtoolnix \
       php8.3-bz2 \
       php8.3-cli \
       pike8.0 \
@@ -138,6 +139,11 @@ ONLY="${LIBBZ2_TEST_ONLY:-}"
 CURRENT_STEP=""
 MULTIARCH="$(gcc -print-multiarch)"
 ACTIVE_LIBBZ2=""
+MARIADB_PID=""
+MARIADB_SOCKET="/tmp/mysqld.sock"
+MARIADB_PID_FILE="/tmp/mysqld.pid"
+MARIADB_CONFIG=""
+MARIADB_DATADIR=""
 APT_LIB="/usr/lib/${MULTIARCH}/libapt-pkg.so.6.0"
 LIBARCHIVE_SO="/usr/lib/${MULTIARCH}/libarchive.so.13"
 FREETYPE_SO="/usr/lib/${MULTIARCH}/libfreetype.so.6"
@@ -217,6 +223,82 @@ build_original_libbz2() {
   ACTIVE_LIBBZ2="$(readlink -f /usr/local/lib/libbz2.so.1.0)"
   [[ -n "$ACTIVE_LIBBZ2" && -f "$ACTIVE_LIBBZ2" ]] || die "failed to install local libbz2 shared library"
   cd /
+}
+
+start_mariadb_server() {
+  local log_path="$1"
+
+  [[ -n "$MARIADB_CONFIG" && -n "$MARIADB_DATADIR" ]] || die "MariaDB test configuration was not initialized"
+
+  rm -f "$MARIADB_PID_FILE" "$MARIADB_SOCKET"
+  install -d -o mysql -g mysql /run/mysqld
+  mariadbd \
+    --defaults-file="$MARIADB_CONFIG" \
+    --user=mysql \
+    --datadir="$MARIADB_DATADIR" \
+    --skip-networking \
+    --socket="$MARIADB_SOCKET" \
+    --pid-file="$MARIADB_PID_FILE" >"$log_path" 2>&1 &
+  MARIADB_PID="$!"
+
+  for _ in $(seq 1 30); do
+    if mysqladmin --socket="$MARIADB_SOCKET" ping >/dev/null 2>&1; then
+      return 0
+    fi
+    if ! kill -0 "$MARIADB_PID" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+
+  cat "$log_path" >&2 || true
+  die "mariadbd did not become ready"
+}
+
+stop_mariadb_server() {
+  if [[ -z "$MARIADB_PID" ]]; then
+    return 0
+  fi
+
+  if [[ -S "$MARIADB_SOCKET" ]]; then
+    timeout 30 mysqladmin --socket="$MARIADB_SOCKET" shutdown >/dev/null 2>&1 || true
+    for _ in $(seq 1 30); do
+      if [[ ! -S "$MARIADB_SOCKET" ]]; then
+        wait "$MARIADB_PID" >/dev/null 2>&1 || true
+        MARIADB_PID=""
+        return 0
+      fi
+      sleep 1
+    done
+  fi
+
+  kill "$MARIADB_PID" >/dev/null 2>&1 || true
+  wait "$MARIADB_PID" >/dev/null 2>&1 || true
+  MARIADB_PID=""
+}
+
+prepare_mariadb_server() {
+  local dir="$1"
+
+  MARIADB_CONFIG="$dir/mariadb.cnf"
+  MARIADB_DATADIR="/dev/shm/libbz2-mariadb"
+
+  rm -rf "$MARIADB_DATADIR"
+  install -d -o mysql -g mysql "$MARIADB_DATADIR" /run/mysqld
+  cat >"$MARIADB_CONFIG" <<'EOF'
+[server]
+plugin_load_add=provider_bzip2
+provider_bzip2=force_plus_permanent
+
+[mariadbd]
+innodb_log_file_size=8M
+innodb_buffer_pool_size=32M
+innodb_flush_method=fsync
+EOF
+  mariadb-install-db \
+    --defaults-file="$MARIADB_CONFIG" \
+    --user=mysql \
+    --datadir="$MARIADB_DATADIR" >"$dir/mariadb-install.log" 2>&1
 }
 
 test_libapt_pkg() {
@@ -450,31 +532,48 @@ test_mariadb_provider() {
   log_step "mariadb-plugin-provider-bzip2"
   assert_links_to_active_libbz2 /usr/lib/mysql/plugin/provider_bzip2.so
   dir="$(reset_test_dir mariadb)"
-  rm -f /tmp/mysqld.pid /tmp/mysqld.sock
-  install -d -o mysql -g mysql /run/mysqld
-  mariadbd \
-    --user=mysql \
-    --skip-networking \
-    --socket=/tmp/mysqld.sock \
-    --pid-file=/tmp/mysqld.pid >"$dir/mariadbd.log" 2>&1 &
-  local mariadb_pid="$!"
-  trap 'kill "$mariadb_pid" >/dev/null 2>&1 || true; wait "$mariadb_pid" >/dev/null 2>&1 || true' RETURN
-
-  for _ in $(seq 1 30); do
-    if mysqladmin --socket=/tmp/mysqld.sock ping >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-  mysqladmin --socket=/tmp/mysqld.sock ping >/dev/null
-  mariadb --socket=/tmp/mysqld.sock -NBe \
-    "SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='provider_bzip2';" \
-    >"$dir/provider-status.txt"
-  require_contains "$dir/provider-status.txt" $'provider_bzip2\tACTIVE'
+  prepare_mariadb_server "$dir"
+  start_mariadb_server "$dir/mariadbd.log"
+  trap 'stop_mariadb_server' RETURN
+  mariadb --socket="$MARIADB_SOCKET" >"$dir/mariadb-initial.log" <<'SQL'
+SHOW GLOBAL STATUS LIKE 'Innodb_have_bzip2';
+SELECT PLUGIN_NAME, PLUGIN_STATUS FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME='provider_bzip2';
+SET GLOBAL innodb_compression_algorithm = bzip2;
+SELECT @@GLOBAL.innodb_compression_algorithm;
+CREATE DATABASE IF NOT EXISTS bz2test;
+USE bz2test;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  payload LONGTEXT
+) ENGINE=InnoDB PAGE_COMPRESSED=1;
+INSERT INTO t1 VALUES
+  (1, REPEAT('abc', 1000)),
+  (2, REPEAT('def', 10000));
+SELECT id, LEFT(payload, 9), LENGTH(payload) FROM t1 ORDER BY id;
+SHOW CREATE TABLE t1;
+SQL
+  require_nonempty_file "$MARIADB_DATADIR/bz2test/t1.ibd"
+  stop_mariadb_server
+  start_mariadb_server "$dir/mariadbd-restart.log"
+  mariadb --socket="$MARIADB_SOCKET" >"$dir/mariadb-restart.log" <<'SQL'
+SHOW GLOBAL STATUS LIKE 'Innodb_have_bzip2';
+SELECT id, LEFT(payload, 9), LENGTH(payload) FROM bz2test.t1 ORDER BY id;
+SHOW CREATE TABLE bz2test.t1;
+SQL
+  require_contains "$dir/mariadb-initial.log" $'Innodb_have_bzip2\tON'
+  require_contains "$dir/mariadb-initial.log" $'provider_bzip2\tACTIVE'
+  require_contains "$dir/mariadb-initial.log" "bzip2"
+  require_contains "$dir/mariadb-initial.log" "abcabcabc"
+  require_contains "$dir/mariadb-initial.log" "defdefdef"
+  require_contains "$dir/mariadb-initial.log" "PAGE_COMPRESSED"
+  require_contains "$dir/mariadb-restart.log" $'Innodb_have_bzip2\tON'
+  require_contains "$dir/mariadb-restart.log" "abcabcabc"
+  require_contains "$dir/mariadb-restart.log" "defdefdef"
+  require_contains "$dir/mariadb-restart.log" "PAGE_COMPRESSED"
 
   trap - RETURN
-  kill "$mariadb_pid" >/dev/null 2>&1 || true
-  wait "$mariadb_pid" >/dev/null 2>&1 || true
+  stop_mariadb_server
 }
 
 test_gpg_bzip2() {
@@ -654,18 +753,164 @@ test_gstreamer_matroska() {
   log_step "gstreamer1.0-plugins-good"
   assert_links_to_active_libbz2 "$GST_MATROSKA_SO"
   dir="$(reset_test_dir gstreamer)"
-  gst-inspect-1.0 matroska >"$dir/gst-inspect.log" 2>&1
-  require_contains "$dir/gst-inspect.log" "Matroska and WebM stream handling"
-  gst-launch-1.0 -q \
-    audiotestsrc num-buffers=20 ! \
-    vorbisenc ! \
-    matroskamux ! \
-    filesink location="$dir/plain.mkv"
+  python3 - "$dir" <<'PY'
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+alpha = "ALPHA" * 80
+beta = "BETA" * 80
+root.joinpath("subtitles.srt").write_text(
+    f"1\n00:00:00,000 --> 00:00:01,500\n{alpha}\n\n"
+    f"2\n00:00:02,000 --> 00:00:03,500\n{beta}\n",
+    encoding="utf-8",
+)
+PY
+  mkvmerge -o "$dir/plain.mkv" "$dir/subtitles.srt" >"$dir/mkvmerge.log" 2>&1
   require_nonempty_file "$dir/plain.mkv"
-  gst-launch-1.0 -q \
-    filesrc location="$dir/plain.mkv" ! \
-    matroskademux ! \
-    fakesink
+  python3 - "$dir" <<'PY'
+import bz2
+from pathlib import Path
+import sys
+
+TRACKS_ID = 0x1654AE6B
+TRACKENTRY_ID = 0xAE
+VOID_ID = 0xEC
+CLUSTER_ID = 0x1F43B675
+BLOCKGROUP_ID = 0xA0
+BLOCK_ID = 0xA1
+CONTENTENCODINGS = bytes.fromhex("6d808a62408750348442548101")
+
+
+def read_id(data: bytearray, pos: int) -> tuple[int, int]:
+    first = data[pos]
+    mask = 0x80
+    length = 1
+    while length <= 4 and not (first & mask):
+        mask >>= 1
+        length += 1
+    return int.from_bytes(data[pos : pos + length], "big"), length
+
+
+def read_size(data: bytearray, pos: int) -> tuple[int, int]:
+    first = data[pos]
+    mask = 0x80
+    length = 1
+    while length <= 8 and not (first & mask):
+        mask >>= 1
+        length += 1
+    value = first & (mask - 1)
+    for offset in range(1, length):
+        value = (value << 8) | data[pos + offset]
+    return value, length
+
+
+def encode_size(value: int, length: int) -> bytes:
+    if value >= (1 << (7 * length)):
+        raise ValueError(f"value {value} too large for {length} bytes")
+    marker = 1 << (7 * length)
+    return (marker | value).to_bytes(length, "big")
+
+
+def find_child(data: bytearray, start: int, end: int, target_id: int) -> tuple[int, int, int, int]:
+    pos = start
+    while pos < end:
+        elem_id, id_len = read_id(data, pos)
+        size, size_len = read_size(data, pos + id_len)
+        if elem_id == target_id:
+            return pos, id_len, size_len, size
+        pos += id_len + size_len + size
+    raise ValueError(f"element {target_id:#x} not found")
+
+
+def make_void(total_len: int) -> bytes:
+    for size_len in range(1, 9):
+        payload_len = total_len - 1 - size_len
+        if payload_len >= 0 and payload_len < (1 << (7 * size_len)):
+            return bytes([VOID_ID]) + encode_size(payload_len, size_len) + (b"\x00" * payload_len)
+    raise ValueError(f"cannot encode EBML void of total length {total_len}")
+
+
+root = Path(sys.argv[1])
+src = bytearray(root.joinpath("plain.mkv").read_bytes())
+
+seg_pos, seg_id_len, seg_size_len, seg_size = find_child(src, 0, len(src), 0x18538067)
+seg_data_start = seg_pos + seg_id_len + seg_size_len
+seg_end = seg_data_start + seg_size
+
+tracks_pos, tracks_id_len, tracks_size_len, tracks_size = find_child(src, seg_data_start, seg_end, TRACKS_ID)
+tracks_data_start = tracks_pos + tracks_id_len + tracks_size_len
+tracks_end = tracks_data_start + tracks_size
+track_pos, track_id_len, track_size_len, track_size = find_child(src, tracks_data_start, tracks_end, TRACKENTRY_ID)
+track_end = track_pos + track_id_len + track_size_len + track_size
+
+void_pos = tracks_end
+void_id, void_id_len = read_id(src, void_pos)
+if void_id != VOID_ID:
+    raise ValueError("expected EBML void after Tracks")
+void_size, void_size_len = read_size(src, void_pos + void_id_len)
+old_void_total = void_id_len + void_size_len + void_size
+
+src[track_pos + track_id_len : track_pos + track_id_len + track_size_len] = encode_size(
+    track_size + len(CONTENTENCODINGS), track_size_len
+)
+src[tracks_pos + tracks_id_len : tracks_pos + tracks_id_len + tracks_size_len] = encode_size(
+    tracks_size + len(CONTENTENCODINGS), tracks_size_len
+)
+src[track_end : track_end + len(CONTENTENCODINGS)] = CONTENTENCODINGS
+src[void_pos + len(CONTENTENCODINGS) : void_pos + old_void_total] = make_void(
+    old_void_total - len(CONTENTENCODINGS)
+)
+
+cluster_pos, cluster_id_len, cluster_size_len, cluster_size = find_child(src, seg_data_start, seg_end, CLUSTER_ID)
+cluster_data_start = cluster_pos + cluster_id_len + cluster_size_len
+cluster_end = cluster_data_start + cluster_size
+
+pos = cluster_data_start
+while pos < cluster_end:
+    elem_id, id_len = read_id(src, pos)
+    elem_size, elem_size_len = read_size(src, pos + id_len)
+    data_start = pos + id_len + elem_size_len
+    data_end = data_start + elem_size
+    if elem_id == BLOCKGROUP_ID:
+        block_pos, block_id_len, block_size_len, block_size = find_child(src, data_start, data_end, BLOCK_ID)
+        old_block_total = block_id_len + block_size_len + block_size
+        block_data = bytes(
+            src[
+                block_pos + block_id_len + block_size_len :
+                block_pos + block_id_len + block_size_len + block_size
+            ]
+        )
+        compressed_frame = bz2.compress(block_data[4:])
+        if len(compressed_frame) >= len(block_data[4:]):
+            raise ValueError("compressed subtitle frame did not shrink; adjust test data")
+        new_block_data = block_data[:4] + compressed_frame
+        new_block_size = len(new_block_data)
+        new_block_total = block_id_len + block_size_len + new_block_size
+        filler_len = old_block_total - new_block_total
+
+        src[block_pos] = BLOCK_ID
+        src[block_pos + block_id_len : block_pos + block_id_len + block_size_len] = encode_size(
+            new_block_size, block_size_len
+        )
+        src[
+            block_pos + block_id_len + block_size_len :
+            block_pos + block_id_len + block_size_len + new_block_size
+        ] = new_block_data
+        if filler_len:
+            src[block_pos + new_block_total : block_pos + old_block_total] = make_void(filler_len)
+    pos = data_end
+
+root.joinpath("bzip2-contentcompression.mkv").write_bytes(src)
+PY
+  mkvinfo -v "$dir/bzip2-contentcompression.mkv" >"$dir/mkvinfo.log" 2>&1
+  require_contains "$dir/mkvinfo.log" "Algorithm: 1 (bzLib)"
+  GST_DEBUG_NO_COLOR=1 gst-launch-1.0 -q \
+    filesrc location="$dir/bzip2-contentcompression.mkv" ! \
+    matroskademux name=d \
+    d. ! identity dump=true silent=false ! fakesink >"$dir/gst.stdout" 2>"$dir/gst.log"
+  require_contains "$dir/gst.stdout" "ALPHAALPHAALPHA"
+  require_contains "$dir/gst.stdout" "BETABETABETA"
 }
 
 run_test() {
