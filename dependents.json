@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "library": "libbz2",
+  "distribution": "Ubuntu 24.04.3 LTS (noble)",
+  "collection_date_local": "2026-04-05",
+  "generated_at_utc": "2026-04-05T18:04:49Z",
+  "metadata_source": "local apt-cache package and source metadata, installed man pages, installed headers, installed binaries, and installed package file lists from an Ubuntu 24.04.3 system configured against the Ubuntu 24.04 repositories",
+  "selection_scope": {
+    "goal": "Curate a diverse, non-exhaustive set of Ubuntu 24.04 packages whose build or runtime behavior directly depends on libbz2.",
+    "selection_policy": [
+      "Prefer direct binary-package dependencies on libbz2-1.0 and direct source-package Build-Depends on libbz2-dev.",
+      "Prefer packages from different domains: compression tools, package management, language runtimes and bindings, databases, cryptography, multimedia, fonts, and archive handling.",
+      "Describe the runtime behavior that uses libbz2 instead of only restating that the package depends on it."
+    ],
+    "notes": [
+      "This file is intentionally representative rather than exhaustive.",
+      "Most selected packages have both a direct runtime dependency on libbz2-1.0 and a direct build dependency on libbz2-dev.",
+      "The bzip2 utilities package is included because the binary package itself directly depends on libbz2-1.0 even though the source package does not Build-Depend on libbz2-dev."
+    ]
+  },
+  "dependents": [
+    {
+      "binary_package": "libapt-pkg6.0t64",
+      "source_package": "apt",
+      "category": "package management library",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "APT's core package-management library can acquire and decompress bzip2-compressed repository metadata through the configured bz2 compression type.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: libapt-pkg6.0t64 depends on libbz2-1.0.",
+        "Ubuntu source metadata: apt Build-Depends on libbz2-dev.",
+        "The shipped file /usr/share/doc/apt/examples/configure-index declares bz2 under Acquire::CompressionTypes and includes it in the preferred compression order."
+      ]
+    },
+    {
+      "binary_package": "bzip2",
+      "source_package": "bzip2",
+      "category": "compression CLI",
+      "dependency_kind": [
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": null,
+      "runtime_functionality": "Provides the bzip2, bunzip2, and bzcat utilities for creating and reading .bz2-compressed files.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: bzip2 depends on libbz2-1.0.",
+        "Ubuntu package description identifies it as the high-quality block-sorting file compressor utilities package."
+      ]
+    },
+    {
+      "binary_package": "libpython3.12-stdlib",
+      "source_package": "python3.12",
+      "category": "programming language runtime",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Provides Python's bz2 module and the _bz2 extension for reading and writing bzip2-compressed data streams and files.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: libpython3.12-stdlib depends on libbz2-1.0.",
+        "Ubuntu source metadata: python3.12 Build-Depends on libbz2-dev.",
+        "Installed package files include /usr/lib/python3.12/bz2.py and /usr/lib/python3.12/lib-dynload/_bz2.cpython-312-x86_64-linux-gnu.so."
+      ]
+    },
+    {
+      "binary_package": "php8.3-bz2",
+      "source_package": "php8.3",
+      "category": "web scripting extension",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Adds PHP functions for working with bzip2-compressed data and files.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: php8.3-bz2 depends on libbz2-1.0.",
+        "Ubuntu source metadata: php8.3 Build-Depends on libbz2-dev.",
+        "Ubuntu package description explicitly says this package provides the bzip2 module for PHP."
+      ]
+    },
+    {
+      "binary_package": "pike8.0-bzip2",
+      "source_package": "pike8.0",
+      "category": "language module",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Exposes the Bzip2 compression algorithm directly to Pike programs.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: pike8.0-bzip2 depends on libbz2-1.0.",
+        "Ubuntu source metadata: pike8.0 Build-Depends on libbz2-dev.",
+        "Ubuntu package description says the module enables Pike programs to use the Bzip2 compression algorithm."
+      ]
+    },
+    {
+      "binary_package": "libcompress-raw-bzip2-perl",
+      "source_package": "libcompress-raw-bzip2-perl",
+      "category": "Perl compression binding",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Supplies Perl code with a low-level interface to bzip2 compression and decompression primitives.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: libcompress-raw-bzip2-perl depends on libbz2-1.0.",
+        "Ubuntu source metadata: libcompress-raw-bzip2-perl Build-Depends on libbz2-dev.",
+        "Ubuntu package description explicitly calls it a low-level interface to the bzip2 compression library for Perl."
+      ]
+    },
+    {
+      "binary_package": "mariadb-plugin-provider-bzip2",
+      "source_package": "mariadb",
+      "category": "database plugin",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Adds BZip2 compression support for MariaDB server and storage-engine paths such as InnoDB and Mroonga.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: mariadb-plugin-provider-bzip2 depends on libbz2-1.0.",
+        "Ubuntu source metadata: mariadb Build-Depends on libbz2-dev.",
+        "Ubuntu package description explicitly says the plugin provides BZip2 compression support in the server and storage engines and notes that it affects InnoDB and Mroonga."
+      ]
+    },
+    {
+      "binary_package": "gpg",
+      "source_package": "gnupg2",
+      "category": "cryptography tool",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Supports OpenPGP payload compression with the bzip2 algorithm, including compression-level and low-memory decompression options.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: gpg depends on libbz2-1.0.",
+        "Ubuntu source metadata: gnupg2 Build-Depends on libbz2-dev.",
+        "The gpg man page documents --compress-algo bzip2, --bzip2-compress-level, and --bzip2-decompress-lowmem."
+      ]
+    },
+    {
+      "binary_package": "zip",
+      "source_package": "zip",
+      "category": "archive creation utility",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Can create ZIP archives whose entries use the bzip2 compression method, for example with zip -Z bzip2.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: zip depends on libbz2-1.0.",
+        "Ubuntu source metadata: zip Build-Depends on libbz2-dev.",
+        "The zip man page says zip supports bzip2 compression when built with the bzip2 library and documents zip -Z bzip2."
+      ]
+    },
+    {
+      "binary_package": "unzip",
+      "source_package": "unzip",
+      "category": "archive extraction utility",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Can extract ZIP archives whose members use the bzip2 compression method.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: unzip depends on libbz2-1.0.",
+        "Ubuntu source metadata: unzip Build-Depends on libbz2-dev.",
+        "unzip -v reports the USE_BZIP2 build option and the linked bzip2 library version."
+      ]
+    },
+    {
+      "binary_package": "libarchive13t64",
+      "source_package": "libarchive",
+      "category": "archive library",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Reads and writes bzip2-compressed archive streams, including the bzip2 filter paths used by libarchive-based tools and applications.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: libarchive13t64 depends on libbz2-1.0.",
+        "Ubuntu source metadata: libarchive Build-Depends on libbz2-dev.",
+        "Ubuntu package description explicitly says libarchive supports reading and writing archives compressed with the bzip2 filter.",
+        "The installed header /usr/include/archive.h declares archive_read_support_filter_bzip2() and archive_write_add_filter_bzip2()."
+      ]
+    },
+    {
+      "binary_package": "libfreetype6",
+      "source_package": "freetype",
+      "category": "font engine",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Supports on-the-fly decompression of bzip2-compressed PCF bitmap fonts through FreeType's BZIP2-enabled font loaders.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: libfreetype6 depends on libbz2-1.0.",
+        "Ubuntu source metadata: freetype Build-Depends on libbz2-dev.",
+        "The installed header /usr/include/freetype2/freetype/config/ftoption.h says libbz2 is used to partially uncompress PCF files on the fly and defines FT_CONFIG_OPTION_USE_BZIP2."
+      ]
+    },
+    {
+      "binary_package": "gstreamer1.0-plugins-good",
+      "source_package": "gst-plugins-good1.0",
+      "category": "multimedia framework plugins",
+      "dependency_kind": [
+        "build",
+        "runtime"
+      ],
+      "direct_runtime_dependency": "libbz2-1.0",
+      "direct_build_dependency": "libbz2-dev",
+      "runtime_functionality": "Its Matroska/WebM plugin can decompress bzip2-compressed Matroska ContentCompression payloads while parsing streams.",
+      "runtime_evidence_level": "explicit",
+      "evidence": [
+        "Ubuntu package metadata: gstreamer1.0-plugins-good depends on libbz2-1.0.",
+        "Ubuntu source metadata: gst-plugins-good1.0 Build-Depends on libbz2-dev.",
+        "The installed plugin /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstmatroska.so links libbz2 and contains BZ2_bzDecompress* symbols plus Matroska ContentCompression strings.",
+        "gst-inspect-1.0 matroska identifies that plugin as the Matroska and WebM stream handling module."
+      ]
+    }
+  ]
+}
