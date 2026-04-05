@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-04-05T17:24:41Z",
+  "source_dataset": "/home/yans/code/safelibs/ported/libbz2/all_cves.json",
+  "product": "libbz2",
+  "analysis_scope": "Identify non-memory-corruption CVEs from the collected bzip2/libbz2 dataset that still matter when porting the libbz2 library itself to Rust.",
+  "selection_rules": [
+    "Keep CVEs whose root cause is not primarily memory corruption.",
+    "Keep CVEs that affect the libbz2 library engine or API-visible decompression behavior.",
+    "Exclude CVEs limited to bundled utilities or helper scripts because the current port target is the library, not the bzip2, bzip2recover, or bzexe executables."
+  ],
+  "relevant_cves": [
+    {
+      "cve_id": "CVE-2005-1260",
+      "component_scope": "library",
+      "component": "core decompressor / decompression bomb handling",
+      "issue_class": "algorithmic denial of service / infinite-loop handling",
+      "summary": "bzip2 allows remote attackers to cause a denial of service (hard drive consumption) via a crafted bzip2 file that causes an infinite loop (a.k.a \"decompression bomb\").",
+      "why_selected": "This is a library-level decompression logic flaw, not a C-specific memory bug. A Rust reimplementation still needs explicit progress guarantees, loop termination conditions, and output-growth limits when decoding malformed streams.",
+      "rust_port_considerations": [
+        "Reject malformed inputs that can cause non-terminating decompression.",
+        "Track decoder progress so each iteration either consumes input, produces bounded output, or errors out.",
+        "Consider configurable output or work limits for hostile inputs."
+      ],
+      "source_urls": {
+        "mitre_api": "https://cveawg.mitre.org/api/cve/CVE-2005-1260",
+        "product_index": "https://cvefeed.io/vuln/product/17684/bzipbzip2/",
+        "debian_tracker": "https://security-tracker.debian.org/tracker/source-package/bzip2"
+      }
+    },
+    {
+      "cve_id": "CVE-2010-0405",
+      "component_scope": "library",
+      "component": "BZ2_decompress integer overflow in decompress.c",
+      "issue_class": "integer overflow / bounds-validation flaw",
+      "summary": "Integer overflow in the BZ2_decompress function in decompress.c in bzip2 and libbzip2 before 1.0.6 allows context-dependent attackers to cause a denial of service (application crash) or possibly execute arbitrary code via a crafted compressed file.",
+      "why_selected": "The original exploitability in C involved unsafe arithmetic inside the library decompressor, but the underlying bug class is arithmetic validation, not just raw memory corruption. In Rust, equivalent unchecked size math could still become a panic, mis-sized allocation, or incorrect bounds decision.",
+      "rust_port_considerations": [
+        "Use checked arithmetic for all decoded lengths, selector counts, and buffer-size derivations.",
+        "Validate all format-derived counts before allocation or indexing.",
+        "Convert arithmetic overflow and impossible state transitions into deterministic decode errors."
+      ],
+      "source_urls": {
+        "mitre_api": "https://cveawg.mitre.org/api/cve/CVE-2010-0405",
+        "product_index": "https://cvefeed.io/vuln/product/17684/bzipbzip2/",
+        "debian_tracker": "https://security-tracker.debian.org/tracker/source-package/bzip2"
+      }
+    }
+  ],
+  "excluded_non_memory_cves": [
+    {
+      "cve_id": "CVE-2002-0759",
+      "reason": "Command-line file-creation overwrite issue; not part of the libbz2 stream API."
+    },
+    {
+      "cve_id": "CVE-2002-0760",
+      "reason": "Command-line decompression permission race; only relevant if the bzip2 utility is also reimplemented."
+    },
+    {
+      "cve_id": "CVE-2002-0761",
+      "reason": "Archive utility permission/symlink handling issue; outside the in-memory library surface."
+    },
+    {
+      "cve_id": "CVE-2005-0953",
+      "reason": "Command-line hard-link race during output permission changes; not a libbz2 library concern."
+    },
+    {
+      "cve_id": "CVE-2011-4089",
+      "reason": "Affects the bzexe wrapper script rather than the library compressor/decompressor."
+    }
+  ],
+  "excluded_memory_corruption_cves": [
+    {
+      "cve_id": "CVE-2008-1372",
+      "reason": "Buffer over-read in library parsing logic. Important historical context, but excluded here because this file only tracks non-memory-corruption CVEs."
+    },
+    {
+      "cve_id": "CVE-2016-3189",
+      "reason": "Use-after-free in bzip2recover. Also limited to a bundled utility rather than libbz2 itself."
+    },
+    {
+      "cve_id": "CVE-2019-12900",
+      "reason": "Out-of-bounds write in the library decompressor. Excluded here because the issue class is memory corruption."
+    }
+  ],
+  "selected_cve_count": 2
+}
