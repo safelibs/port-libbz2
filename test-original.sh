@@ -165,8 +165,8 @@ CURRENT_STEP=""
 MULTIARCH="$(gcc -print-multiarch)"
 ACTIVE_LIBBZ2=""
 MARIADB_PID=""
-MARIADB_SOCKET="/tmp/mysqld.sock"
-MARIADB_PID_FILE="/tmp/mysqld.pid"
+MARIADB_SOCKET=""
+MARIADB_PID_FILE=""
 MARIADB_CONFIG=""
 MARIADB_DATADIR=""
 APT_LIB="/usr/lib/${MULTIARCH}/libapt-pkg.so.6.0"
@@ -265,10 +265,9 @@ install_safe_packages() {
 start_mariadb_server() {
   local log_path="$1"
 
-  [[ -n "$MARIADB_CONFIG" && -n "$MARIADB_DATADIR" ]] || die "MariaDB test configuration was not initialized"
+  [[ -n "$MARIADB_CONFIG" && -n "$MARIADB_DATADIR" && -n "$MARIADB_SOCKET" && -n "$MARIADB_PID_FILE" ]] || die "MariaDB test configuration was not initialized"
 
   rm -f "$MARIADB_PID_FILE" "$MARIADB_SOCKET"
-  install -d -o mysql -g mysql /run/mysqld
   mariadbd \
     --defaults-file="$MARIADB_CONFIG" \
     --user=mysql \
@@ -316,12 +315,15 @@ stop_mariadb_server() {
 
 prepare_mariadb_server() {
   local dir="$1"
+  local runtime_dir="$dir/mariadb-runtime"
 
   MARIADB_CONFIG="$dir/mariadb.cnf"
-  MARIADB_DATADIR="/dev/shm/libbz2-mariadb"
+  MARIADB_DATADIR="$dir/mariadb-datadir"
+  MARIADB_SOCKET="$runtime_dir/mysqld.sock"
+  MARIADB_PID_FILE="$runtime_dir/mysqld.pid"
 
-  rm -rf "$MARIADB_DATADIR"
-  install -d -o mysql -g mysql "$MARIADB_DATADIR" /run/mysqld
+  rm -rf "$MARIADB_DATADIR" "$runtime_dir"
+  install -d -o mysql -g mysql "$MARIADB_DATADIR" "$runtime_dir"
   cat >"$MARIADB_CONFIG" <<'EOF'
 [server]
 plugin_load_add=provider_bzip2

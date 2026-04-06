@@ -8,7 +8,6 @@ OUT="$PACKAGE_ROOT/out"
 MANIFEST="$OUT/package-manifest.txt"
 IMAGE_TAG="${LIBBZ2_DEB_TEST_IMAGE:-libbz2-safe-deb-test:ubuntu24.04}"
 
-DEFAULT_TESTS=(link-with-shared bigfile bzexe-test compare compress grep)
 SELECTED_TESTS=()
 
 die() {
@@ -58,68 +57,129 @@ for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
   [[ -f "$OUT/$deb_name" ]] || die "required package artifact missing from $OUT: $deb_name"
 done
 
-if (( ${#SELECTED_TESTS[@]} == 0 )); then
-  SELECTED_TESTS=( "${DEFAULT_TESTS[@]}" )
-fi
-
-for test_name in "${SELECTED_TESTS[@]}"; do
-  case "$test_name" in
-    link-with-shared|bigfile|bzexe-test|compare|compress|grep)
-      ;;
-    *)
-      die "unknown Debian autopkgtest: $test_name"
-      ;;
-  esac
-done
-
-require_builddeps=0
-for test_name in "${SELECTED_TESTS[@]}"; do
-  if [[ "$test_name" == "link-with-shared" ]]; then
-    require_builddeps=1
-    break
-  fi
-done
-
-builddeps="$(
-  python3 - "$SRC/debian/control" <<'PY'
+autopkgtest_metadata="$(
+  python3 - "$SRC/debian/tests/control" "$SRC/debian/control" "${SELECTED_TESTS[@]}" <<'PY'
 import re
 import sys
 from pathlib import Path
 
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
-fields = {}
-current = None
-for line in text.splitlines():
-    if not line:
-        current = None
-        continue
-    if line[0].isspace() and current is not None:
-        fields[current] += " " + line.strip()
-        continue
-    if ":" not in line:
-        continue
-    key, value = line.split(":", 1)
-    current = key
-    fields[key] = value.strip()
+def parse_debian_control(path: Path) -> list[dict[str, str]]:
+    paragraphs: list[dict[str, str]] = []
+    fields: dict[str, str] = {}
+    current: str | None = None
 
-deps = []
-for key in ("Build-Depends", "Build-Depends-Indep"):
-    for entry in fields.get(key, "").split(","):
-        entry = re.sub(r"\[[^]]*\]", "", entry)
-        entry = re.sub(r"<[^>]*>", "", entry)
-        entry = entry.strip()
-        if not entry:
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            if fields:
+                paragraphs.append(fields)
+                fields = {}
+            current = None
             continue
-        candidate = entry.split("|", 1)[0].strip()
-        candidate = re.sub(r"\s*\(.*?\)", "", candidate).strip()
-        if candidate == "debhelper-compat":
-            candidate = "debhelper"
-        if candidate and candidate not in deps:
-            deps.append(candidate)
+        if line[0].isspace() and current is not None:
+            fields[current] += " " + line.strip()
+            continue
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        current = key
+        fields[key] = value.strip()
 
-print(" ".join(deps))
+    if fields:
+        paragraphs.append(fields)
+
+    return paragraphs
+
+
+def normalize_dependency(entry: str) -> str:
+    entry = re.sub(r"\[[^]]*\]", "", entry)
+    entry = re.sub(r"<[^>]*>", "", entry)
+    entry = entry.strip()
+    if not entry:
+        return ""
+    candidate = entry.split("|", 1)[0].strip()
+    candidate = re.sub(r"\s*\(.*?\)", "", candidate).strip()
+    if candidate == "debhelper-compat":
+        candidate = "debhelper"
+    return candidate
+
+
+tests_control = parse_debian_control(Path(sys.argv[1]))
+source_control = parse_debian_control(Path(sys.argv[2]))
+requested = sys.argv[3:]
+
+available_tests: list[str] = []
+test_dependencies: dict[str, list[str]] = {}
+for paragraph in tests_control:
+    names = paragraph.get("Tests", "").split()
+    depends = [item.strip() for item in paragraph.get("Depends", "").split(",") if item.strip()]
+    for name in names:
+        available_tests.append(name)
+        test_dependencies[name] = depends
+
+if not available_tests:
+    raise SystemExit("no Debian autopkgtests declared in debian/tests/control")
+
+selected = requested or available_tests
+unknown = [name for name in selected if name not in test_dependencies]
+if unknown:
+    raise SystemExit(
+        "unknown Debian autopkgtest(s): " + ", ".join(unknown)
+    )
+
+builddeps: list[str] = []
+if source_control:
+    source_fields = source_control[0]
+    for key in ("Build-Depends", "Build-Depends-Indep"):
+        for entry in source_fields.get(key, "").split(","):
+            candidate = normalize_dependency(entry)
+            if candidate and candidate not in builddeps:
+                builddeps.append(candidate)
+
+apt_deps: list[str] = []
+needs_packages = False
+for test_name in selected:
+    for entry in test_dependencies[test_name]:
+        candidate = normalize_dependency(entry)
+        if not candidate:
+            continue
+        if candidate == "@":
+            needs_packages = True
+            continue
+        if candidate == "@builddeps@":
+            for dep in builddeps:
+                if dep not in apt_deps:
+                    apt_deps.append(dep)
+            continue
+        if candidate not in apt_deps:
+            apt_deps.append(candidate)
+
+print("tests=" + " ".join(selected))
+print("apt_deps=" + " ".join(apt_deps))
+print("needs_packages=" + ("1" if needs_packages else "0"))
 PY
 )"
+
+resolved_tests=""
+apt_deps=""
+needs_packages="0"
+
+while IFS='=' read -r key value; do
+  case "$key" in
+    tests)
+      resolved_tests="$value"
+      ;;
+    apt_deps)
+      apt_deps="$value"
+      ;;
+    needs_packages)
+      needs_packages="$value"
+      ;;
+    *)
+      ;;
+  esac
+done <<< "$autopkgtest_metadata"
+
+[[ -n "$resolved_tests" ]] || die "failed to resolve Debian autopkgtests from $SRC/debian/tests/control"
 
 package_paths=()
 for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
@@ -136,13 +196,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
 
-tests_string="${SELECTED_TESTS[*]}"
+tests_string="$resolved_tests"
 deb_paths_string="${package_paths[*]}"
 
 docker run --rm \
   -e "LIBBZ2_AUTOPKGTESTS=$tests_string" \
-  -e "LIBBZ2_BUILDDEPS=$builddeps" \
-  -e "LIBBZ2_REQUIRE_BUILDDEPS=$require_builddeps" \
+  -e "LIBBZ2_APT_DEPS=$apt_deps" \
+  -e "LIBBZ2_NEEDS_PACKAGES=$needs_packages" \
   -e "LIBBZ2_PACKAGE_DEBS=$deb_paths_string" \
   -v "$ROOT:/work:ro" \
   "$IMAGE_TAG" \
@@ -153,16 +213,18 @@ export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
 
-if [[ "${LIBBZ2_REQUIRE_BUILDDEPS}" == "1" ]]; then
-  apt-get install -y --no-install-recommends build-essential ${LIBBZ2_BUILDDEPS}
+if [[ -n "${LIBBZ2_APT_DEPS}" ]]; then
+  apt-get install -y --no-install-recommends ${LIBBZ2_APT_DEPS}
 fi
 
-apt-get install -y --no-install-recommends ${LIBBZ2_PACKAGE_DEBS}
+if [[ "${LIBBZ2_NEEDS_PACKAGES}" == "1" ]]; then
+  apt-get install -y --no-install-recommends ${LIBBZ2_PACKAGE_DEBS}
+fi
 
 for test_name in ${LIBBZ2_AUTOPKGTESTS}; do
   export AUTOPKGTEST_TMP="/tmp/libbz2-autopkgtest/${test_name}"
   rm -rf "$AUTOPKGTEST_TMP"
   mkdir -p "$AUTOPKGTEST_TMP"
-  /bin/sh "/work/safe/debian/tests/${test_name}"
+  /bin/sh "/work/target/package/src/debian/tests/${test_name}"
 done
 CONTAINER
