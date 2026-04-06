@@ -1,3 +1,0 @@
-+ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/link-original-tests.sh --all
-public_api_test: ok
-public_api_test: ok

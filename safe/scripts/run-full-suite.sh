@@ -30,7 +30,7 @@ run_step 06-build-debs bash "$ROOT/safe/scripts/build-debs.sh"
 run_step 07-check-package-layout bash "$ROOT/safe/scripts/check-package-layout.sh"
 run_step 08-run-debian-tests bash "$ROOT/safe/scripts/run-debian-tests.sh" --tests link-with-shared bigfile bzexe-test compare compress grep
 run_step 09-test-original "$ROOT/test-original.sh"
-run_step 10-benchmark bash "$ROOT/safe/scripts/benchmark-compare.sh"
+run_step 10-benchmark env LIBBZ2_BENCH_CAPTURE_SECURITY_LOG=0 bash "$ROOT/safe/scripts/benchmark-compare.sh"
 
 {
   printf 'release_gate=impl_06_final_hardening_and_release_gate\n'
