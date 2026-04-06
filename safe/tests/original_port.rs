@@ -475,6 +475,26 @@ fn ported_stdio_wrappers_match_upstream() {
         BZ2_bzclose(bzf);
     }
 
+    let wrapped_member = fs::read(&data_path).unwrap();
+    let mut expected_member = vec![0u8; compressed_bound(source.len())];
+    let mut expected_member_len = expected_member.len() as u32;
+    unsafe {
+        assert_eq!(
+            BZ2_bzBuffToBuffCompress(
+                expected_member.as_mut_ptr().cast::<c_char>(),
+                &mut expected_member_len,
+                source.as_ptr().cast_mut().cast::<c_char>(),
+                source.len() as u32,
+                7,
+                0,
+                0,
+            ),
+            BZ_OK
+        );
+    }
+    expected_member.truncate(expected_member_len as usize);
+    assert_eq!(wrapped_member, expected_member);
+
     let fd = std::fs::File::open(&data_path).unwrap().into_raw_fd();
     let bzf = unsafe { BZ2_bzdopen(fd, read_mode.as_ptr()) };
     assert!(!bzf.is_null());

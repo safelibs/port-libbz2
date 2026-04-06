@@ -231,6 +231,75 @@ fn write_side_stdio_and_wrapper_paths_roundtrip_generated_payload() {
 }
 
 #[test]
+fn write_close_abandon_reports_counters_without_finishing_stream() {
+    let mut payload = vec![0u8; 48_000];
+    fill_payload(&mut payload, 9);
+
+    let path = temp_path("write-abandon");
+    let path_c = CString::new(path.to_string_lossy().as_bytes()).unwrap();
+    let wb = CString::new("wb").unwrap();
+    let file = unsafe { fopen(path_c.as_ptr(), wb.as_ptr()) };
+    assert!(!file.is_null());
+    let mut out_lo = 0u32;
+
+    unsafe {
+        let mut bzerr = BZ_OK;
+        let handle = BZ2_bzWriteOpen(&mut bzerr, file, 5, 0, 0);
+        assert_eq!(bzerr, BZ_OK);
+        assert!(!handle.is_null());
+
+        let mut offset = 0usize;
+        while offset < payload.len() {
+            let chunk = (payload.len() - offset).min(1021);
+            BZ2_bzWrite(
+                &mut bzerr,
+                handle,
+                payload.as_ptr().add(offset).cast_mut().cast(),
+                chunk as c_int,
+            );
+            assert_eq!(bzerr, BZ_OK);
+            offset += chunk;
+        }
+
+        let mut in_lo = 0u32;
+        let mut in_hi = 0u32;
+        let mut out_hi = 0u32;
+        BZ2_bzWriteClose64(
+            &mut bzerr,
+            handle,
+            1,
+            &mut in_lo,
+            &mut in_hi,
+            &mut out_lo,
+            &mut out_hi,
+        );
+        assert_eq!(bzerr, BZ_OK);
+        assert_eq!(in_lo, payload.len() as u32);
+        assert_eq!(in_hi, 0);
+        assert_eq!(out_hi, 0);
+        assert_eq!(fclose(file), 0);
+    }
+
+    let partial = fs::read(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!(partial.len() as u32, out_lo);
+
+    let mut restored = vec![0u8; payload.len()];
+    let mut restored_len = restored.len() as u32;
+    let ret = unsafe {
+        BZ2_bzBuffToBuffDecompress(
+            restored.as_mut_ptr().cast::<c_char>(),
+            &mut restored_len,
+            partial.as_ptr().cast_mut().cast::<c_char>(),
+            partial.len() as u32,
+            0,
+            0,
+        )
+    };
+    assert_ne!(ret, BZ_OK);
+}
+
+#[test]
 fn bzopen_write_mode_zero_clamps_to_block_size_one() {
     let mut payload = vec![0u8; 32_000];
     fill_payload(&mut payload, 11);

@@ -11,6 +11,10 @@ ORIGINAL=""
 default_cppflags='-D_REENTRANT -D_FILE_OFFSET_BITS=64'
 default_cflags='-Wall -Winline -O2 -g'
 
+run_with_safe_lib() {
+  env LD_LIBRARY_PATH="$LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$@"
+}
+
 run_samples=0
 while (($# > 0)); do
   case "$1" in
@@ -101,15 +105,12 @@ if (( run_samples )); then
   tmpdir="$(mktemp -d "$SOURCE_ROOT/target/compat-bzip2.XXXXXX")"
   trap 'rm -rf "$tmpdir"' EXIT
 
-  env LD_LIBRARY_PATH="$LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    "$OUTPUT_DIR/bzip2" -1c "$ORIGINAL/sample1.ref" > "$tmpdir/sample1.bz2"
+  run_with_safe_lib "$OUTPUT_DIR/bzip2" -1c "$ORIGINAL/sample1.ref" > "$tmpdir/sample1.bz2"
   cmp "$tmpdir/sample1.bz2" "$ORIGINAL/sample1.bz2"
 
-  env LD_LIBRARY_PATH="$LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    "$OUTPUT_DIR/bzip2" -2c "$ORIGINAL/sample2.ref" > "$tmpdir/sample2.bz2"
+  run_with_safe_lib "$OUTPUT_DIR/bzip2" -2c "$ORIGINAL/sample2.ref" > "$tmpdir/sample2.bz2"
   cmp "$tmpdir/sample2.bz2" "$ORIGINAL/sample2.bz2"
 
-  env LD_LIBRARY_PATH="$LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-    "$OUTPUT_DIR/bzip2" -3c "$ORIGINAL/sample3.ref" > "$tmpdir/sample3.bz2"
+  run_with_safe_lib "$OUTPUT_DIR/bzip2" -3c "$ORIGINAL/sample3.ref" > "$tmpdir/sample3.bz2"
   cmp "$tmpdir/sample3.bz2" "$ORIGINAL/sample3.bz2"
 fi

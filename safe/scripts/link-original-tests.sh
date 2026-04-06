@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPAT="$ROOT/target/compat"
 BASELINE="$ROOT/target/original-baseline"
+cc_bin="${CC:-gcc}"
+
+run_with_compat_lib() {
+  env LD_LIBRARY_PATH="$COMPAT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" "$@"
+}
 
 mode=""
 while (($# > 0)); do
@@ -58,7 +63,7 @@ repo_relative() {
 compile_c_fixture() {
   local output="$1"
   local source="$2"
-  gcc \
+  "$cc_bin" \
     -D_FILE_OFFSET_BITS=64 \
     -Wall -Winline -O2 -g \
     -o "$output" \
@@ -72,7 +77,7 @@ compile_c_fixture() {
 link_object_fixture() {
   local output="$1"
   local object="$2"
-  gcc \
+  "$cc_bin" \
     -o "$output" \
     "$object" \
     -L"$COMPAT" \
@@ -89,12 +94,12 @@ CLI_OBJECT="$(resolve_file "$ROOT/original/bzip2.o" "$BASELINE/bzip2.o")"
 
 run_public_api_source() {
   compile_c_fixture "$COMPAT/public_api_test-source" "$ROOT/original/public_api_test.c"
-  "$COMPAT/public_api_test-source"
+  run_with_compat_lib "$COMPAT/public_api_test-source"
 }
 
 run_public_api_object() {
   link_object_fixture "$COMPAT/public_api_test-object" "$PUBLIC_API_OBJECT"
-  "$COMPAT/public_api_test-object"
+  run_with_compat_lib "$COMPAT/public_api_test-object"
 }
 
 run_bzip2_object() {
@@ -115,13 +120,13 @@ run_bzip2_object() {
 
   (
     cd "$ROOT"
-    "$COMPAT/bzip2-object" -1c "$sample1_ref" > "$tmpdir_rel/sample1.bz2"
+    run_with_compat_lib "$COMPAT/bzip2-object" -1c "$sample1_ref" > "$tmpdir_rel/sample1.bz2"
     cmp "$tmpdir_rel/sample1.bz2" "$sample1_bz2"
 
-    "$COMPAT/bzip2-object" -2c "$sample2_ref" > "$tmpdir_rel/sample2.bz2"
+    run_with_compat_lib "$COMPAT/bzip2-object" -2c "$sample2_ref" > "$tmpdir_rel/sample2.bz2"
     cmp "$tmpdir_rel/sample2.bz2" "$sample2_bz2"
 
-    "$COMPAT/bzip2-object" -3c "$sample3_ref" > "$tmpdir_rel/sample3.bz2"
+    run_with_compat_lib "$COMPAT/bzip2-object" -3c "$sample3_ref" > "$tmpdir_rel/sample3.bz2"
     cmp "$tmpdir_rel/sample3.bz2" "$sample3_bz2"
   )
   rm -rf "$tmpdir"
@@ -143,16 +148,16 @@ run_dlltest_read_modes() {
 
   (
     cd "$ROOT"
-    "$COMPAT/dlltest-source" -d "$path_bz2" "$tmpdir_rel/path.out"
+    run_with_compat_lib "$COMPAT/dlltest-source" -d "$path_bz2" "$tmpdir_rel/path.out"
     cmp "$tmpdir_rel/path.out" "$path_out"
 
-    "$COMPAT/dlltest-source" -d < "$stdio_bz2" > "$tmpdir_rel/stdio.out"
+    run_with_compat_lib "$COMPAT/dlltest-source" -d < "$stdio_bz2" > "$tmpdir_rel/stdio.out"
     cmp "$tmpdir_rel/stdio.out" "$stdio_out"
 
-    "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
+    run_with_compat_lib "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
     cmp "$tmpdir_rel/object-path.out" "$path_out"
 
-    "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
+    run_with_compat_lib "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
     cmp "$tmpdir_rel/object-stdio.out" "$stdio_out"
   )
   rm -rf "$tmpdir"
@@ -174,28 +179,28 @@ run_dlltest_all_modes() {
 
   (
     cd "$ROOT"
-    "$COMPAT/dlltest-source" -d "$path_bz2" "$tmpdir_rel/path.out"
+    run_with_compat_lib "$COMPAT/dlltest-source" -d "$path_bz2" "$tmpdir_rel/path.out"
     cmp "$tmpdir_rel/path.out" "$path_out"
 
-    "$COMPAT/dlltest-source" -d < "$stdio_bz2" > "$tmpdir_rel/stdio.out"
+    run_with_compat_lib "$COMPAT/dlltest-source" -d < "$stdio_bz2" > "$tmpdir_rel/stdio.out"
     cmp "$tmpdir_rel/stdio.out" "$stdio_out"
 
-    "$COMPAT/dlltest-source" "$path_out" "$tmpdir_rel/path.bz2"
+    run_with_compat_lib "$COMPAT/dlltest-source" "$path_out" "$tmpdir_rel/path.bz2"
     cmp "$tmpdir_rel/path.bz2" "$path_bz2"
 
-    "$COMPAT/dlltest-source" -1 < "$stdio_out" > "$tmpdir_rel/stdio.bz2"
+    run_with_compat_lib "$COMPAT/dlltest-source" -1 < "$stdio_out" > "$tmpdir_rel/stdio.bz2"
     cmp "$tmpdir_rel/stdio.bz2" "$stdio_bz2"
 
-    "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
+    run_with_compat_lib "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
     cmp "$tmpdir_rel/object-path.out" "$path_out"
 
-    "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
+    run_with_compat_lib "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
     cmp "$tmpdir_rel/object-stdio.out" "$stdio_out"
 
-    "$COMPAT/dlltest-object" "$path_out" "$tmpdir_rel/object-path.bz2"
+    run_with_compat_lib "$COMPAT/dlltest-object" "$path_out" "$tmpdir_rel/object-path.bz2"
     cmp "$tmpdir_rel/object-path.bz2" "$path_bz2"
 
-    "$COMPAT/dlltest-object" -1 < "$stdio_out" > "$tmpdir_rel/object-stdio.bz2"
+    run_with_compat_lib "$COMPAT/dlltest-object" -1 < "$stdio_out" > "$tmpdir_rel/object-stdio.bz2"
     cmp "$tmpdir_rel/object-stdio.bz2" "$stdio_bz2"
   )
   rm -rf "$tmpdir"

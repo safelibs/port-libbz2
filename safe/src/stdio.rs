@@ -64,6 +64,17 @@ unsafe fn make_handle(handle: *mut CFile, writing: bool) -> *mut c_void {
     Box::into_raw(state).cast()
 }
 
+unsafe fn flush_write_buffer(bzf: *mut BzFileState) -> c_int {
+    if (*bzf).strm.avail_out < BZ_MAX_UNUSED as u32 {
+        let n = BZ_MAX_UNUSED as usize - (*bzf).strm.avail_out as usize;
+        let written = fwrite((*bzf).buf.as_ptr().cast::<c_void>(), 1, n, (*bzf).handle);
+        if written != n || ferror((*bzf).handle) != 0 {
+            return BZ_IO_ERROR;
+        }
+    }
+    BZ_OK
+}
+
 unsafe fn myfeof(file: *mut CFile) -> bool {
     let ch = fgetc(file);
     if ch == EOF_VALUE {
@@ -420,13 +431,10 @@ pub unsafe extern "C" fn BZ2_bzWrite(
             return;
         }
 
-        if (*bzf).strm.avail_out < BZ_MAX_UNUSED as u32 {
-            let n = BZ_MAX_UNUSED as usize - (*bzf).strm.avail_out as usize;
-            let written = fwrite((*bzf).buf.as_ptr().cast::<c_void>(), 1, n, (*bzf).handle);
-            if written != n || ferror((*bzf).handle) != 0 {
-                set_bzerror(bzerror, bzf, BZ_IO_ERROR);
-                return;
-            }
+        let flush_ret = flush_write_buffer(bzf);
+        if flush_ret != BZ_OK {
+            set_bzerror(bzerror, bzf, flush_ret);
+            return;
         }
 
         if (*bzf).strm.avail_in == 0 {
@@ -502,13 +510,10 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
                 return;
             }
 
-            if (*bzf).strm.avail_out < BZ_MAX_UNUSED as u32 {
-                let n = BZ_MAX_UNUSED as usize - (*bzf).strm.avail_out as usize;
-                let written = fwrite((*bzf).buf.as_ptr().cast::<c_void>(), 1, n, (*bzf).handle);
-                if written != n || ferror((*bzf).handle) != 0 {
-                    set_bzerror(bzerror, bzf, BZ_IO_ERROR);
-                    return;
-                }
+            let flush_ret = flush_write_buffer(bzf);
+            if flush_ret != BZ_OK {
+                set_bzerror(bzerror, bzf, flush_ret);
+                return;
             }
 
             if ret == BZ_STREAM_END {

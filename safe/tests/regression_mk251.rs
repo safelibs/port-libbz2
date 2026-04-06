@@ -14,6 +14,10 @@ const SAMPLE1_REF: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../original/sample1.ref"
 ));
+const SAMPLE2_REF: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../original/sample2.ref"
+));
 
 fn zeroed_stream() -> bz_stream {
     unsafe { MaybeUninit::<bz_stream>::zeroed().assume_init() }
@@ -140,6 +144,35 @@ fn assert_mk251_case(payload_len: usize, block_size_100k: i32) {
     );
 }
 
+fn assert_upstream_oracle(payload: &[u8], block_size_100k: i32) {
+    let compressed = compress_via_stream(payload, block_size_100k);
+    assert_eq!(decompress_all(&compressed, payload.len()), payload);
+
+    let input_path = temp_path("blocksort-oracle");
+    fs::File::create(&input_path)
+        .unwrap()
+        .write_all(payload)
+        .unwrap();
+
+    let original_bzip2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../original/bzip2")
+        .canonicalize()
+        .unwrap();
+    let output = Command::new(original_bzip2)
+        .arg(format!("-{block_size_100k}c"))
+        .arg(&input_path)
+        .output()
+        .expect("run upstream bzip2 oracle");
+    assert!(
+        output.status.success(),
+        "upstream oracle failed: {:?}",
+        output.status
+    );
+
+    fs::remove_file(input_path).unwrap();
+    assert_eq!(compressed, output.stdout);
+}
+
 #[test]
 fn mk251_regression_preserves_the_blocksort_1007_fix() {
     // The original mk251 reproducer is a long run of byte 251. Keep both the classic oversized
@@ -152,34 +185,11 @@ fn mk251_regression_preserves_the_blocksort_1007_fix() {
 #[test]
 fn blocksort_large_repeated_text_regression_matches_upstream() {
     let payload = repeat_to_size(SAMPLE1_REF, 16 * 1024 * 1024);
-    let compressed = compress_via_stream(&payload, 9);
+    assert_upstream_oracle(&payload, 9);
+}
 
-    assert_eq!(decompress_all(&compressed, payload.len()), payload);
-
-    let input_path = temp_path("blocksort-large-text");
-    fs::File::create(&input_path)
-        .unwrap()
-        .write_all(&payload)
-        .unwrap();
-
-    let original_bzip2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../original/bzip2")
-        .canonicalize()
-        .unwrap();
-    let output = Command::new(original_bzip2)
-        .arg("-9c")
-        .arg(&input_path)
-        .output()
-        .expect("run upstream bzip2 for large-text oracle");
-    assert!(
-        output.status.success(),
-        "upstream large-text oracle failed: {:?}",
-        output.status
-    );
-
-    fs::remove_file(input_path).unwrap();
-    assert_eq!(
-        compressed, output.stdout,
-        "large repeated-text compressor drifted from upstream"
-    );
+#[test]
+fn blocksort_block_boundary_split_matches_upstream() {
+    let payload = repeat_to_size(SAMPLE2_REF, 100_000 + 4096);
+    assert_upstream_oracle(&payload, 1);
 }
