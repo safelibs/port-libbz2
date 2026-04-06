@@ -65,6 +65,11 @@ unsafe fn block_capacity(state: &EState) -> usize {
 }
 
 #[inline]
+fn block_byte_capacity(block_cap: usize) -> usize {
+    (block_cap + BZ_N_OVERSHOOT as usize) * core::mem::size_of::<UInt32>()
+}
+
+#[inline]
 unsafe fn bh_set(bhtab: &mut [UInt32], idx: Int32) {
     let word = usize::try_from(idx >> 5).unwrap();
     let bit = (idx & 31) as u32;
@@ -249,24 +254,27 @@ unsafe fn fallbackSort(
     let nblock_usize = usize::try_from(nblock).unwrap();
     let mut ftab: [Int32; 257] = [0; 257];
     let mut ftab_copy: [Int32; 256] = [0; 256];
-    let eclass8 = eclass_ptr.cast::<UChar>();
 
     for i in 0..257usize {
         ftab[i] = 0;
     }
-    for i in 0..nblock_usize {
-        ftab[*eclass8.add(i) as usize] += 1;
-    }
-    ftab_copy.copy_from_slice(&ftab[..256]);
-    for i in 1..257usize {
-        ftab[i] += ftab[i - 1];
-    }
+    {
+        let eclass8 = slice::from_raw_parts(eclass_ptr.cast::<UChar>(), nblock_usize);
+        for &class in eclass8 {
+            ftab[class as usize] += 1;
+        }
 
-    for i in 0..nblock_usize {
-        let j = *eclass8.add(i) as usize;
-        let k = ftab[j].wrapping_sub(1);
-        ftab[j] = k;
-        fmap[k as usize] = i as UInt32;
+        ftab_copy.copy_from_slice(&ftab[..256]);
+        for i in 1..257usize {
+            ftab[i] += ftab[i - 1];
+        }
+
+        for (i, &class) in eclass8.iter().enumerate() {
+            let j = class as usize;
+            let k = ftab[j].wrapping_sub(1);
+            ftab[j] = k;
+            fmap[k as usize] = i as UInt32;
+        }
     }
 
     let n_bhtab = usize::try_from(2 + (nblock / 32)).unwrap();
@@ -283,6 +291,7 @@ unsafe fn fallbackSort(
     }
 
     let mut h = 1;
+    let eclass = slice::from_raw_parts_mut(eclass_ptr, nblock_usize);
     loop {
         let mut j = 0;
         for i in 0..nblock {
@@ -293,10 +302,9 @@ unsafe fn fallbackSort(
             if k < 0 {
                 k += nblock;
             }
-            *eclass_ptr.add(k as usize) = j as UInt32;
+            eclass[k as usize] = j as UInt32;
         }
 
-        let eclass = slice::from_raw_parts(eclass_ptr, nblock_usize);
         let mut n_not_done = 0;
         let mut r = -1;
         loop {
@@ -353,12 +361,15 @@ unsafe fn fallbackSort(
     }
 
     let mut j = 0usize;
-    for i in 0..nblock_usize {
-        while ftab_copy[j] == 0 {
-            j += 1;
+    {
+        let eclass8 = slice::from_raw_parts_mut(eclass_ptr.cast::<UChar>(), nblock_usize);
+        for i in 0..nblock_usize {
+            while ftab_copy[j] == 0 {
+                j += 1;
+            }
+            ftab_copy[j] -= 1;
+            eclass8[fmap[i] as usize] = j as UChar;
         }
-        ftab_copy[j] -= 1;
-        *eclass8.add(fmap[i] as usize) = j as UChar;
     }
     assert_h(j < 256, 1005);
 }
@@ -871,10 +882,7 @@ pub unsafe extern "C" fn BZ2_blockSort(s: *mut EState) {
     let block_cap = block_capacity(s);
     let arr2_ptr = s.arr2;
     let ptr = slice::from_raw_parts_mut(s.arr1, block_cap);
-    let block = slice::from_raw_parts_mut(
-        arr2_ptr.cast::<UChar>(),
-        (block_cap + BZ_N_OVERSHOOT as usize) * core::mem::size_of::<UInt32>(),
-    );
+    let block = slice::from_raw_parts_mut(arr2_ptr.cast::<UChar>(), block_byte_capacity(block_cap));
     let ftab = slice::from_raw_parts_mut(s.ftab, 65_537);
 
     if nblock < 10_000 {
@@ -885,9 +893,10 @@ pub unsafe extern "C" fn BZ2_blockSort(s: *mut EState) {
             i += 1;
         }
 
-        let quadrant_ptr = block.as_mut_ptr().add(i as usize).cast::<UInt16>();
+        let (_, quadrant_bytes) = block.split_at_mut(i as usize);
         let quadrant_len = block_cap + BZ_N_OVERSHOOT as usize;
-        let quadrant = slice::from_raw_parts_mut(quadrant_ptr, quadrant_len);
+        let quadrant =
+            slice::from_raw_parts_mut(quadrant_bytes.as_mut_ptr().cast::<UInt16>(), quadrant_len);
 
         if wfact < 1 {
             wfact = 1;

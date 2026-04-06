@@ -11,7 +11,7 @@ use crate::huffman::{BZ2_hbAssignCodes, BZ2_hbMakeCodeLengths};
 use crate::types::{bz_stream, Bool, EState, Int32, UChar, UInt16, UInt32};
 use core::mem::size_of;
 use std::os::raw::{c_char, c_int};
-use std::ptr;
+use std::{ptr, slice};
 
 const BZ_HDR_B: UChar = 0x42;
 const BZ_HDR_Z: UChar = 0x5a;
@@ -77,6 +77,87 @@ fn block_capacity(block_size_100k: Int32) -> Option<usize> {
     usize::try_from(block_size_100k).ok()?.checked_mul(100_000)
 }
 
+fn block_byte_capacity(block_size_100k: Int32) -> Option<usize> {
+    block_capacity(block_size_100k)?
+        .checked_add(BZ_N_OVERSHOOT as usize)?
+        .checked_mul(size_of::<UInt32>())
+}
+
+#[inline]
+unsafe fn ptr_storage<'a>(ptr: *const UInt32, block_size_100k: Int32) -> &'a [UInt32] {
+    slice::from_raw_parts(ptr, block_capacity(block_size_100k).unwrap())
+}
+
+#[inline]
+unsafe fn block_storage<'a>(block: *const UChar, block_size_100k: Int32) -> &'a [UChar] {
+    slice::from_raw_parts(block, block_byte_capacity(block_size_100k).unwrap())
+}
+
+#[inline]
+unsafe fn block_storage_mut<'a>(block: *mut UChar, block_size_100k: Int32) -> &'a mut [UChar] {
+    slice::from_raw_parts_mut(block, block_byte_capacity(block_size_100k).unwrap())
+}
+
+#[inline]
+unsafe fn mtfv_storage<'a>(mtfv: *const UInt16, block_size_100k: Int32) -> &'a [UInt16] {
+    slice::from_raw_parts(mtfv, block_capacity(block_size_100k).unwrap() * 2)
+}
+
+#[inline]
+unsafe fn mtfv_storage_mut<'a>(mtfv: *mut UInt16, block_size_100k: Int32) -> &'a mut [UInt16] {
+    slice::from_raw_parts_mut(mtfv, block_capacity(block_size_100k).unwrap() * 2)
+}
+
+#[inline]
+unsafe fn zbits_storage<'a>(
+    zbits: *const UChar,
+    block: *const UChar,
+    block_size_100k: Int32,
+) -> &'a [UChar] {
+    let total = block_byte_capacity(block_size_100k).unwrap();
+    let start = usize::try_from(zbits.offset_from(block)).unwrap();
+    slice::from_raw_parts(zbits, total - start)
+}
+
+#[inline]
+unsafe fn zbits_storage_mut<'a>(
+    zbits: *mut UChar,
+    block: *mut UChar,
+    block_size_100k: Int32,
+) -> &'a mut [UChar] {
+    let total = block_byte_capacity(block_size_100k).unwrap();
+    let start = usize::try_from(zbits.offset_from(block)).unwrap();
+    slice::from_raw_parts_mut(zbits, total - start)
+}
+
+#[inline]
+fn push_block_byte(block: &mut [UChar], nblock: &mut Int32, byte: UChar) {
+    block[usize::try_from(*nblock).unwrap()] = byte;
+    *nblock += 1;
+}
+
+#[inline]
+fn push_mtf_value(mtfv: &mut [UInt16], wr: &mut Int32, value: UInt16) {
+    mtfv[usize::try_from(*wr).unwrap()] = value;
+    *wr += 1;
+}
+
+#[inline]
+fn add_total(lo32: &mut UInt32, hi32: &mut UInt32, amount: UInt32) {
+    let (next_lo, carry) = lo32.overflowing_add(amount);
+    *lo32 = next_lo;
+    if carry {
+        *hi32 = hi32.wrapping_add(1);
+    }
+}
+
+#[inline]
+unsafe fn push_zbit_byte(s: &mut EState, byte: UChar) {
+    let zbits = zbits_storage_mut(s.zbits, s.block, s.blockSize100k);
+    zbits[usize::try_from(s.numZ).unwrap()] = byte;
+    s.numZ += 1;
+}
+
 unsafe fn alloc_zeroed_u32_slice(len: usize) -> Result<*mut UInt32, c_int> {
     let mut values = Vec::new();
     values.try_reserve_exact(len).map_err(|_| BZ_MEM_ERROR)?;
@@ -140,6 +221,7 @@ unsafe fn isempty_RL(s: &EState) -> bool {
 
 unsafe fn add_pair_to_block(s: &mut EState) {
     let ch = s.state_in_ch as UChar;
+    let block = block_storage_mut(s.block, s.blockSize100k);
     for _ in 0..s.state_in_len {
         s.blockCRC = bz_crc_update(s.blockCRC, ch);
     }
@@ -147,31 +229,23 @@ unsafe fn add_pair_to_block(s: &mut EState) {
 
     match s.state_in_len {
         1 => {
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
+            push_block_byte(block, &mut s.nblock, ch);
         }
         2 => {
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
+            push_block_byte(block, &mut s.nblock, ch);
+            push_block_byte(block, &mut s.nblock, ch);
         }
         3 => {
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
-            *s.block.add(s.nblock as usize) = ch;
-            s.nblock += 1;
+            push_block_byte(block, &mut s.nblock, ch);
+            push_block_byte(block, &mut s.nblock, ch);
+            push_block_byte(block, &mut s.nblock, ch);
         }
         _ => {
             s.inUse[(s.state_in_len - 4) as usize] = 1;
             for _ in 0..4 {
-                *s.block.add(s.nblock as usize) = ch;
-                s.nblock += 1;
+                push_block_byte(block, &mut s.nblock, ch);
             }
-            *s.block.add(s.nblock as usize) = (s.state_in_len - 4) as UChar;
-            s.nblock += 1;
+            push_block_byte(block, &mut s.nblock, (s.state_in_len - 4) as UChar);
         }
     }
 }
@@ -186,10 +260,10 @@ unsafe fn flush_RL(s: &mut EState) {
 unsafe fn add_char_to_block(s: &mut EState, ch: UInt32) {
     if ch != s.state_in_ch && s.state_in_len == 1 {
         let ch0 = s.state_in_ch as UChar;
+        let block = block_storage_mut(s.block, s.blockSize100k);
         s.blockCRC = bz_crc_update(s.blockCRC, ch0);
         s.inUse[s.state_in_ch as usize] = 1;
-        *s.block.add(s.nblock as usize) = ch0;
-        s.nblock += 1;
+        push_block_byte(block, &mut s.nblock, ch0);
         s.state_in_ch = ch;
         return;
     }
@@ -210,73 +284,72 @@ unsafe fn validate_stream_buffers(strm: &bz_stream) -> bool {
 }
 
 unsafe fn copy_input_until_stop(s: &mut EState) -> bool {
-    let mut progress_in = false;
-
-    if s.mode == BZ_M_RUNNING {
-        loop {
-            if s.nblock >= s.nblockMAX {
-                break;
-            }
-            if (*s.strm).avail_in == 0 {
-                break;
-            }
-            progress_in = true;
-            add_char_to_block(s, *((*s.strm).next_in.cast::<UChar>()) as UInt32);
-            (*s.strm).next_in = (*s.strm).next_in.add(1);
-            (*s.strm).avail_in -= 1;
-            (*s.strm).total_in_lo32 = (*s.strm).total_in_lo32.wrapping_add(1);
-            if (*s.strm).total_in_lo32 == 0 {
-                (*s.strm).total_in_hi32 = (*s.strm).total_in_hi32.wrapping_add(1);
-            }
-        }
-    } else {
-        loop {
-            if s.nblock >= s.nblockMAX {
-                break;
-            }
-            if (*s.strm).avail_in == 0 {
-                break;
-            }
-            if s.avail_in_expect == 0 {
-                break;
-            }
-            progress_in = true;
-            add_char_to_block(s, *((*s.strm).next_in.cast::<UChar>()) as UInt32);
-            (*s.strm).next_in = (*s.strm).next_in.add(1);
-            (*s.strm).avail_in -= 1;
-            (*s.strm).total_in_lo32 = (*s.strm).total_in_lo32.wrapping_add(1);
-            if (*s.strm).total_in_lo32 == 0 {
-                (*s.strm).total_in_hi32 = (*s.strm).total_in_hi32.wrapping_add(1);
-            }
-            s.avail_in_expect -= 1;
-        }
+    let strm = &mut *s.strm;
+    if strm.avail_in == 0
+        || s.nblock >= s.nblockMAX
+        || (s.mode != BZ_M_RUNNING && s.avail_in_expect == 0)
+    {
+        return false;
     }
 
-    progress_in
+    let input = slice::from_raw_parts(
+        strm.next_in.cast::<UChar>(),
+        usize::try_from(strm.avail_in).unwrap(),
+    );
+    let input_limit = if s.mode == BZ_M_RUNNING {
+        input.len()
+    } else {
+        input.len().min(usize::try_from(s.avail_in_expect).unwrap())
+    };
+    let mut consumed = 0usize;
+
+    while consumed < input_limit && s.nblock < s.nblockMAX {
+        add_char_to_block(s, input[consumed] as UInt32);
+        consumed += 1;
+    }
+
+    strm.next_in = input[consumed..].as_ptr().cast::<c_char>() as *mut c_char;
+    strm.avail_in -= consumed as UInt32;
+    add_total(
+        &mut strm.total_in_lo32,
+        &mut strm.total_in_hi32,
+        consumed as UInt32,
+    );
+    if s.mode != BZ_M_RUNNING {
+        s.avail_in_expect -= consumed as UInt32;
+    }
+
+    consumed != 0
 }
 
 unsafe fn copy_output_until_stop(s: &mut EState) -> bool {
-    let mut progress_out = false;
-
-    loop {
-        if (*s.strm).avail_out == 0 {
-            break;
-        }
-        if s.state_out_pos >= s.numZ {
-            break;
-        }
-        progress_out = true;
-        *(*s.strm).next_out = *s.zbits.add(s.state_out_pos as usize) as c_char;
-        s.state_out_pos += 1;
-        (*s.strm).avail_out -= 1;
-        (*s.strm).next_out = (*s.strm).next_out.add(1);
-        (*s.strm).total_out_lo32 = (*s.strm).total_out_lo32.wrapping_add(1);
-        if (*s.strm).total_out_lo32 == 0 {
-            (*s.strm).total_out_hi32 = (*s.strm).total_out_hi32.wrapping_add(1);
-        }
+    let strm = &mut *s.strm;
+    if strm.avail_out == 0 || s.state_out_pos >= s.numZ {
+        return false;
     }
 
-    progress_out
+    let zbits = zbits_storage(s.zbits, s.block, s.blockSize100k);
+    let output = slice::from_raw_parts_mut(
+        strm.next_out.cast::<UChar>(),
+        usize::try_from(strm.avail_out).unwrap(),
+    );
+    let mut produced = 0usize;
+
+    while produced < output.len() && s.state_out_pos < s.numZ {
+        output[produced] = zbits[usize::try_from(s.state_out_pos).unwrap()];
+        s.state_out_pos += 1;
+        produced += 1;
+    }
+
+    strm.next_out = output[produced..].as_mut_ptr().cast::<c_char>();
+    strm.avail_out -= produced as UInt32;
+    add_total(
+        &mut strm.total_out_lo32,
+        &mut strm.total_out_hi32,
+        produced as UInt32,
+    );
+
+    produced != 0
 }
 
 unsafe fn handle_compress(strm: *mut bz_stream) -> bool {
@@ -328,7 +401,7 @@ unsafe fn makeMaps_e(s: &mut EState) {
     }
 }
 
-unsafe fn emit_zero_run(s: &mut EState, mtfv: *mut UInt16, wr: &mut Int32, z_pend: &mut Int32) {
+unsafe fn emit_zero_run(s: &mut EState, mtfv: &mut [UInt16], wr: &mut Int32, z_pend: &mut Int32) {
     if *z_pend <= 0 {
         return;
     }
@@ -336,12 +409,10 @@ unsafe fn emit_zero_run(s: &mut EState, mtfv: *mut UInt16, wr: &mut Int32, z_pen
     *z_pend -= 1;
     loop {
         if (*z_pend & 1) != 0 {
-            *mtfv.add(*wr as usize) = BZ_RUNB as UInt16;
-            *wr += 1;
+            push_mtf_value(mtfv, wr, BZ_RUNB as UInt16);
             s.mtfFreq[BZ_RUNB as usize] += 1;
         } else {
-            *mtfv.add(*wr as usize) = BZ_RUNA as UInt16;
-            *wr += 1;
+            push_mtf_value(mtfv, wr, BZ_RUNA as UInt16);
             s.mtfFreq[BZ_RUNA as usize] += 1;
         }
         if *z_pend < 2 {
@@ -354,9 +425,9 @@ unsafe fn emit_zero_run(s: &mut EState, mtfv: *mut UInt16, wr: &mut Int32, z_pen
 
 unsafe fn generateMTFValues(s: &mut EState) {
     let mut yy = [0u8; 256];
-    let ptr = s.ptr;
-    let block = s.block;
-    let mtfv = s.mtfv;
+    let ptr = ptr_storage(s.ptr, s.blockSize100k);
+    let block = block_storage(s.block, s.blockSize100k);
+    let mtfv = mtfv_storage_mut(s.mtfv, s.blockSize100k);
 
     makeMaps_e(s);
     let eob = s.nInUse + 1;
@@ -371,11 +442,11 @@ unsafe fn generateMTFValues(s: &mut EState) {
     }
 
     for i in 0..usize::try_from(s.nblock).unwrap() {
-        let mut j = (*ptr.add(i) as Int32) - 1;
+        let mut j = ptr[i] as Int32 - 1;
         if j < 0 {
             j += s.nblock;
         }
-        let ll_i = s.unseqToSeq[*block.add(j as usize) as usize];
+        let ll_i = s.unseqToSeq[block[usize::try_from(j).unwrap()] as usize];
 
         if yy[0] == ll_i {
             z_pend += 1;
@@ -392,23 +463,20 @@ unsafe fn generateMTFValues(s: &mut EState) {
                 yy[pos] = rtmp2;
             }
             yy[0] = rtmp;
-            *mtfv.add(wr as usize) = (pos as Int32 + 1) as UInt16;
-            wr += 1;
+            push_mtf_value(mtfv, &mut wr, (pos as Int32 + 1) as UInt16);
             s.mtfFreq[pos + 1] += 1;
         }
     }
 
     emit_zero_run(s, mtfv, &mut wr, &mut z_pend);
-    *mtfv.add(wr as usize) = eob as UInt16;
-    wr += 1;
+    push_mtf_value(mtfv, &mut wr, eob as UInt16);
     s.mtfFreq[eob as usize] += 1;
     s.nMTF = wr;
 }
 
 unsafe fn bsW(s: &mut EState, n: Int32, value: UInt32) {
     while s.bsLive >= 8 {
-        *s.zbits.add(s.numZ as usize) = (s.bsBuff >> 24) as UChar;
-        s.numZ += 1;
+        push_zbit_byte(s, (s.bsBuff >> 24) as UChar);
         s.bsBuff <<= 8;
         s.bsLive -= 8;
     }
@@ -429,15 +497,14 @@ unsafe fn bsPutUChar(s: &mut EState, value: UChar) {
 
 unsafe fn bsFinishWrite(s: &mut EState) {
     while s.bsLive > 0 {
-        *s.zbits.add(s.numZ as usize) = (s.bsBuff >> 24) as UChar;
-        s.numZ += 1;
+        push_zbit_byte(s, (s.bsBuff >> 24) as UChar);
         s.bsBuff <<= 8;
         s.bsLive -= 8;
     }
 }
 
 unsafe fn sendMTFValues(s: &mut EState) {
-    let mtfv = s.mtfv;
+    let mtfv = mtfv_storage(s.mtfv, s.blockSize100k);
     let alpha_size = s.nInUse + 2;
     for t in 0..BZ_N_GROUPS {
         for v in 0..usize::try_from(alpha_size).unwrap() {
@@ -513,7 +580,7 @@ unsafe fn sendMTFValues(s: &mut EState) {
                 let mut cost23 = 0u32;
                 let mut cost45 = 0u32;
                 for nn in 0..50usize {
-                    let icv = *mtfv.add(gs as usize + nn) as usize;
+                    let icv = mtfv[usize::try_from(gs).unwrap() + nn] as usize;
                     cost01 = cost01.wrapping_add(s.len_pack[icv][0]);
                     cost23 = cost23.wrapping_add(s.len_pack[icv][1]);
                     cost45 = cost45.wrapping_add(s.len_pack[icv][2]);
@@ -526,7 +593,7 @@ unsafe fn sendMTFValues(s: &mut EState) {
                 cost[5] = (cost45 >> 16) as u16;
             } else {
                 for i in gs..=ge {
-                    let icv = *mtfv.add(i as usize) as usize;
+                    let icv = mtfv[usize::try_from(i).unwrap()] as usize;
                     for t in 0..n_groups as usize {
                         cost[t] = cost[t].wrapping_add(s.len[t][icv] as u16);
                     }
@@ -547,12 +614,12 @@ unsafe fn sendMTFValues(s: &mut EState) {
 
             if n_groups == 6 && ge - gs + 1 == 50 {
                 for nn in 0..50usize {
-                    let sym = *mtfv.add(gs as usize + nn) as usize;
+                    let sym = mtfv[usize::try_from(gs).unwrap() + nn] as usize;
                     s.rfreq[bt as usize][sym] += 1;
                 }
             } else {
                 for i in gs..=ge {
-                    let sym = *mtfv.add(i as usize) as usize;
+                    let sym = mtfv[usize::try_from(i).unwrap()] as usize;
                     s.rfreq[bt as usize][sym] += 1;
                 }
             }
@@ -665,7 +732,7 @@ unsafe fn sendMTFValues(s: &mut EState) {
         assert_h((table as Int32) < n_groups, 3006);
         if n_groups == 6 && ge - gs + 1 == 50 {
             for nn in 0..50usize {
-                let mtfv_i = *mtfv.add(gs as usize + nn) as usize;
+                let mtfv_i = mtfv[usize::try_from(gs).unwrap() + nn] as usize;
                 bsW(
                     s,
                     s.len[table][mtfv_i] as Int32,
@@ -674,7 +741,7 @@ unsafe fn sendMTFValues(s: &mut EState) {
             }
         } else {
             for i in gs..=ge {
-                let mtfv_i = *mtfv.add(i as usize) as usize;
+                let mtfv_i = mtfv[usize::try_from(i).unwrap()] as usize;
                 bsW(
                     s,
                     s.len[table][mtfv_i] as Int32,
@@ -713,7 +780,9 @@ pub unsafe extern "C" fn BZ2_compressBlock(state: *mut EState, is_last_block: Bo
         BZ2_blockSort(state);
     }
 
-    s.zbits = s.block.add(s.nblock as usize);
+    let (_, zbits) = block_storage_mut(s.block, s.blockSize100k)
+        .split_at_mut(usize::try_from(s.nblock).unwrap());
+    s.zbits = zbits.as_mut_ptr();
 
     if s.blockNo == 1 {
         BZ2_bsInitWrite(state);
