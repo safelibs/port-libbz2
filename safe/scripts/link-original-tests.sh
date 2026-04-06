@@ -11,6 +11,9 @@ while (($# > 0)); do
     --read-side)
       mode="read-side"
       ;;
+    --public-api)
+      mode="public-api"
+      ;;
     *)
       echo "unknown option: $1" >&2
       exit 1
@@ -19,12 +22,29 @@ while (($# > 0)); do
   shift
 done
 
-if [[ "$mode" != "read-side" ]]; then
-  echo "expected --read-side" >&2
+if [[ -z "$mode" ]]; then
+  echo "expected --read-side or --public-api" >&2
   exit 1
 fi
 
 test -f "$COMPAT/libbz2.so.1.0.4"
+test -f "$COMPAT/include/bzlib.h"
+
+if [[ "$mode" == "public-api" ]]; then
+  gcc \
+    -D_FILE_OFFSET_BITS=64 \
+    -Wall -Winline -O2 -g \
+    -o "$COMPAT/public_api_test" \
+    "$ROOT/original/public_api_test.c" \
+    -I"$COMPAT/include" \
+    -L"$COMPAT" \
+    -Wl,-rpath,'$ORIGIN' \
+    -lbz2
+
+  "$COMPAT/public_api_test"
+  exit 0
+fi
+
 test -f "$BASELINE/dlltest-path.bz2"
 test -f "$BASELINE/dlltest-path.out"
 test -f "$BASELINE/dlltest-stdio.bz2"

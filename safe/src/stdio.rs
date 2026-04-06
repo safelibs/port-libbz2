@@ -1,5 +1,7 @@
+use crate::compress::{BZ2_bzCompress, BZ2_bzCompressEnd, BZ2_bzCompressInit};
 use crate::constants::{
-    BZ_MAX_UNUSED, BZ_OK, BZ_PARAM_ERROR, BZ_SEQUENCE_ERROR, BZ_STREAM_END, BZ_UNEXPECTED_EOF,
+    BZ_IO_ERROR, BZ_MAX_UNUSED, BZ_OK, BZ_PARAM_ERROR, BZ_RUN, BZ_RUN_OK, BZ_SEQUENCE_ERROR,
+    BZ_STREAM_END, BZ_UNEXPECTED_EOF,
 };
 use crate::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
 use crate::ffi::{bzerror_message_ptr, set_error_slot};
@@ -16,7 +18,9 @@ unsafe extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
+    fn fflush(file: *mut CFile) -> c_int;
     fn fread(ptr: *mut c_void, size: usize, nmemb: usize, stream: *mut CFile) -> usize;
+    fn fwrite(ptr: *const c_void, size: usize, nmemb: usize, stream: *mut CFile) -> usize;
     fn ferror(stream: *mut CFile) -> c_int;
     fn fgetc(stream: *mut CFile) -> c_int;
     fn ungetc(c: c_int, stream: *mut CFile) -> c_int;
@@ -320,8 +324,34 @@ pub unsafe extern "C" fn BZ2_bzWriteOpen(
         set_bzerror(bzerror, ptr::null_mut(), BZ_PARAM_ERROR);
         return ptr::null_mut();
     }
+
+    if ferror(f) != 0 {
+        set_bzerror(bzerror, ptr::null_mut(), BZ_IO_ERROR);
+        return ptr::null_mut();
+    }
+
     let handle = make_handle(f, true);
-    set_bzerror(bzerror, state_from_handle(handle), BZ_OK);
+    let bzf = state_from_handle(handle);
+    (*bzf).initialisedOk = 0;
+    (*bzf).bufN = 0;
+    (*bzf).strm.bzalloc = None;
+    (*bzf).strm.bzfree = None;
+    (*bzf).strm.opaque = ptr::null_mut();
+
+    let mut work_factor = workFactor;
+    if work_factor == 0 {
+        work_factor = 30;
+    }
+    let ret = BZ2_bzCompressInit(&mut (*bzf).strm, blockSize100k, verbosity, work_factor);
+    if ret != BZ_OK {
+        set_bzerror(bzerror, bzf, ret);
+        drop(Box::from_raw(bzf));
+        return ptr::null_mut();
+    }
+
+    (*bzf).strm.avail_in = 0;
+    (*bzf).initialisedOk = 1;
+    set_bzerror(bzerror, bzf, BZ_OK);
     handle
 }
 
@@ -329,18 +359,54 @@ pub unsafe extern "C" fn BZ2_bzWriteOpen(
 pub unsafe extern "C" fn BZ2_bzWrite(
     bzerror: *mut c_int,
     b: *mut c_void,
-    _buf: *mut c_void,
+    buf: *mut c_void,
     len: c_int,
 ) {
-    if b.is_null() || len < 0 {
+    if b.is_null() || buf.is_null() || len < 0 {
         set_bzerror(bzerror, ptr::null_mut(), BZ_PARAM_ERROR);
         return;
     }
-    set_bzerror(
-        bzerror,
-        state_from_handle(b),
-        crate::constants::BZ_CONFIG_ERROR,
-    );
+
+    let bzf = state_from_handle(b);
+    if (*bzf).writing == 0 {
+        set_bzerror(bzerror, bzf, BZ_SEQUENCE_ERROR);
+        return;
+    }
+    if ferror((*bzf).handle) != 0 {
+        set_bzerror(bzerror, bzf, BZ_IO_ERROR);
+        return;
+    }
+    if len == 0 {
+        set_bzerror(bzerror, bzf, BZ_OK);
+        return;
+    }
+
+    (*bzf).strm.avail_in = len as u32;
+    (*bzf).strm.next_in = buf.cast();
+
+    loop {
+        (*bzf).strm.avail_out = BZ_MAX_UNUSED as u32;
+        (*bzf).strm.next_out = (*bzf).buf.as_mut_ptr();
+        let ret = BZ2_bzCompress(&mut (*bzf).strm, BZ_RUN);
+        if ret != BZ_RUN_OK {
+            set_bzerror(bzerror, bzf, ret);
+            return;
+        }
+
+        if (*bzf).strm.avail_out < BZ_MAX_UNUSED as u32 {
+            let n = BZ_MAX_UNUSED as usize - (*bzf).strm.avail_out as usize;
+            let written = fwrite((*bzf).buf.as_ptr().cast::<c_void>(), 1, n, (*bzf).handle);
+            if written != n || ferror((*bzf).handle) != 0 {
+                set_bzerror(bzerror, bzf, BZ_IO_ERROR);
+                return;
+            }
+        }
+
+        if (*bzf).strm.avail_in == 0 {
+            set_bzerror(bzerror, bzf, BZ_OK);
+            return;
+        }
+    }
 }
 
 #[no_mangle]
@@ -378,7 +444,7 @@ pub unsafe extern "C" fn BZ2_bzWriteClose(
 pub unsafe extern "C" fn BZ2_bzWriteClose64(
     bzerror: *mut c_int,
     b: *mut c_void,
-    _abandon: c_int,
+    abandon: c_int,
     nbytes_in_lo32: *mut u32,
     nbytes_in_hi32: *mut u32,
     nbytes_out_lo32: *mut u32,
@@ -398,11 +464,67 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
     }
 
     if b.is_null() {
-        set_bzerror(bzerror, ptr::null_mut(), BZ_PARAM_ERROR);
+        set_error_slot(bzerror, BZ_OK);
         return;
     }
     let bzf = state_from_handle(b);
-    set_error_slot(bzerror, BZ_OK);
+    if (*bzf).writing == 0 {
+        set_bzerror(bzerror, bzf, BZ_SEQUENCE_ERROR);
+        return;
+    }
+    if ferror((*bzf).handle) != 0 {
+        set_bzerror(bzerror, bzf, BZ_IO_ERROR);
+        return;
+    }
+
+    if abandon == 0 && (*bzf).lastErr == BZ_OK {
+        loop {
+            (*bzf).strm.avail_out = BZ_MAX_UNUSED as u32;
+            (*bzf).strm.next_out = (*bzf).buf.as_mut_ptr();
+            let ret = BZ2_bzCompress(&mut (*bzf).strm, crate::constants::BZ_FINISH);
+            if ret != crate::constants::BZ_FINISH_OK && ret != BZ_STREAM_END {
+                set_bzerror(bzerror, bzf, ret);
+                return;
+            }
+
+            if (*bzf).strm.avail_out < BZ_MAX_UNUSED as u32 {
+                let n = BZ_MAX_UNUSED as usize - (*bzf).strm.avail_out as usize;
+                let written = fwrite((*bzf).buf.as_ptr().cast::<c_void>(), 1, n, (*bzf).handle);
+                if written != n || ferror((*bzf).handle) != 0 {
+                    set_bzerror(bzerror, bzf, BZ_IO_ERROR);
+                    return;
+                }
+            }
+
+            if ret == BZ_STREAM_END {
+                break;
+            }
+        }
+    }
+
+    if abandon == 0 && ferror((*bzf).handle) == 0 {
+        let _ = fflush((*bzf).handle);
+        if ferror((*bzf).handle) != 0 {
+            set_bzerror(bzerror, bzf, BZ_IO_ERROR);
+            return;
+        }
+    }
+
+    if !nbytes_in_lo32.is_null() {
+        *nbytes_in_lo32 = (*bzf).strm.total_in_lo32;
+    }
+    if !nbytes_in_hi32.is_null() {
+        *nbytes_in_hi32 = (*bzf).strm.total_in_hi32;
+    }
+    if !nbytes_out_lo32.is_null() {
+        *nbytes_out_lo32 = (*bzf).strm.total_out_lo32;
+    }
+    if !nbytes_out_hi32.is_null() {
+        *nbytes_out_hi32 = (*bzf).strm.total_out_hi32;
+    }
+
+    set_bzerror(bzerror, bzf, BZ_OK);
+    let _ = BZ2_bzCompressEnd(&mut (*bzf).strm);
     drop(Box::from_raw(bzf));
 }
 
@@ -439,17 +561,13 @@ pub unsafe extern "C" fn BZ2_bzwrite(b: *mut c_void, _buf: *mut c_void, len: c_i
     if b.is_null() {
         return -1;
     }
-    let bzf = state_from_handle(b);
-    (*bzf).lastErr = crate::constants::BZ_CONFIG_ERROR;
-    if (*bzf).writing == 0 {
-        (*bzf).lastErr = BZ_SEQUENCE_ERROR;
-        return -1;
+    let mut bzerr = BZ_OK;
+    BZ2_bzWrite(&mut bzerr, b, _buf, len);
+    if bzerr == BZ_OK {
+        len
+    } else {
+        -1
     }
-    if len < 0 {
-        (*bzf).lastErr = BZ_PARAM_ERROR;
-        return -1;
-    }
-    -1
 }
 
 #[no_mangle]

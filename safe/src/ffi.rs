@@ -1,6 +1,7 @@
+use crate::compress::{BZ2_bzCompress, BZ2_bzCompressEnd, BZ2_bzCompressInit};
 use crate::constants::{
-    BZ_CONFIG_ERROR, BZ_DATA_ERROR, BZ_DATA_ERROR_MAGIC, BZ_FINISH_OK, BZ_IO_ERROR, BZ_MEM_ERROR,
-    BZ_OK, BZ_OUTBUFF_FULL, BZ_PARAM_ERROR, BZ_RUN_OK, BZ_SEQUENCE_ERROR, BZ_STREAM_END,
+    BZ_DATA_ERROR, BZ_DATA_ERROR_MAGIC, BZ_FINISH, BZ_FINISH_OK, BZ_IO_ERROR, BZ_MEM_ERROR, BZ_OK,
+    BZ_OUTBUFF_FULL, BZ_PARAM_ERROR, BZ_RUN_OK, BZ_SEQUENCE_ERROR, BZ_STREAM_END,
     BZ_UNEXPECTED_EOF, BZ_VERSION_BYTES,
 };
 use crate::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
@@ -54,18 +55,52 @@ pub extern "C" fn BZ2_bzlibVersion() -> *const c_char {
 
 #[no_mangle]
 pub unsafe extern "C" fn BZ2_bzBuffToBuffCompress(
-    _dest: *mut c_char,
+    dest: *mut c_char,
     destLen: *mut c_uint,
-    _source: *mut c_char,
-    _sourceLen: c_uint,
-    _blockSize100k: c_int,
-    _verbosity: c_int,
-    _workFactor: c_int,
+    source: *mut c_char,
+    sourceLen: c_uint,
+    blockSize100k: c_int,
+    verbosity: c_int,
+    workFactor: c_int,
 ) -> c_int {
-    if !destLen.is_null() {
-        *destLen = 0;
+    if dest.is_null()
+        || destLen.is_null()
+        || source.is_null()
+        || !(1..=9).contains(&blockSize100k)
+        || !(0..=4).contains(&verbosity)
+        || !(0..=250).contains(&workFactor)
+    {
+        return BZ_PARAM_ERROR;
     }
-    BZ_CONFIG_ERROR
+
+    let mut strm: bz_stream = MaybeUninit::zeroed().assume_init();
+    strm.bzalloc = None;
+    strm.bzfree = None;
+    strm.opaque = core::ptr::null_mut();
+
+    let ret = BZ2_bzCompressInit(&mut strm, blockSize100k, verbosity, workFactor);
+    if ret != BZ_OK {
+        return ret;
+    }
+
+    strm.next_in = source;
+    strm.next_out = dest;
+    strm.avail_in = sourceLen;
+    strm.avail_out = *destLen;
+
+    let ret = BZ2_bzCompress(&mut strm, BZ_FINISH);
+    if ret == BZ_FINISH_OK {
+        let _ = BZ2_bzCompressEnd(&mut strm);
+        return BZ_OUTBUFF_FULL;
+    }
+    if ret != BZ_STREAM_END {
+        let _ = BZ2_bzCompressEnd(&mut strm);
+        return ret;
+    }
+
+    *destLen -= strm.avail_out;
+    let _ = BZ2_bzCompressEnd(&mut strm);
+    BZ_OK
 }
 
 #[no_mangle]

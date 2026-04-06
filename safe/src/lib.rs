@@ -3,6 +3,7 @@
 #![allow(non_upper_case_globals)]
 
 pub mod alloc;
+pub mod blocksort;
 pub mod compress;
 pub mod constants;
 pub mod crc;
