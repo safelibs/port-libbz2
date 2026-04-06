@@ -1,0 +1,158 @@
++ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/build-debs.sh
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 DONE 0.0s
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 433B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/ubuntu:24.04
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/2] FROM docker.io/library/ubuntu:24.04
+#4 DONE 0.0s
+
+#5 [2/2] RUN apt-get update  && apt-get install -y --no-install-recommends       build-essential       ca-certificates       cargo       debhelper       devscripts       docbook-xml       docbook2x       dpkg-dev       fakeroot       pkg-config       rustc       texinfo       xsltproc  && rm -rf /var/lib/apt/lists/*
+#5 CACHED
+
+#6 exporting to image
+#6 exporting layers done
+#6 writing image sha256:efffe0fcf20450e074d704ca06418a091e2b570de11bf38e16a7c97ee818f5c9 done
+#6 naming to docker.io/library/libbz2-safe-deb-build:ubuntu24.04 done
+#6 DONE 0.0s
+docbook2x-texi \
+  --string-param directory-category=Development \
+  --string-param directory-description='A program and library for data compression' \
+  --string-param output-file=manual \
+  --to-stdout manual.xml > manual.texi
+error : xmlAddEntity: invalid redeclaration of predefined entity
+makeinfo -o bzip2.info manual.texi
+dpkg-buildpackage: info: source package bzip2
+dpkg-buildpackage: info: source version 1.0.8-5.1build0.1+safelibs1
+dpkg-buildpackage: info: source distribution unstable
+dpkg-buildpackage: info: source changed by SafeLibs Automation <safelibs@example.invalid>
+dpkg-buildpackage: info: host architecture amd64
+ dpkg-source --before-build .
+dpkg-source: info: using options from src/debian/source/options: --compression=bzip2 --compression-level=9
+ debian/rules build
+dh build
+   dh_update_autotools_config
+   dh_autoreconf
+   debian/rules override_dh_auto_build-arch
+make[1]: Entering directory '/work/target/package/src'
+mkdir -p /work/target/package/src/debian/cargo-home /work/target/package/src/../install/root/usr/bin /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu /work/target/package/src/../install/root/usr/include
+cargo build --manifest-path Cargo.toml --release --locked --offline
+   Compiling libbz2-safe v1.0.8+phase1 (/work/target/package/src)
+    Finished release [optimized] target(s) in 1.08s
+install -m 0755 /work/target/package/src/../cargo/release/libbz2.so /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4
+ln -sfn libbz2.so.1.0.4 /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu/libbz2.so.1.0
+install -m 0644 /work/target/package/src/../cargo/release/libbz2.a /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu/libbz2.a
+install -m 0644 include/bzlib.h /work/target/package/src/../install/root/usr/include/bzlib.h
+CC='gcc' CFLAGS='-g -O2 -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer -ffile-prefix-map=/work/target/package/src=. -flto=auto -ffat-lto-objects -fstack-protector-strong -fstack-clash-protection -Wformat -Werror=format-security -fcf-protection -fdebug-prefix-map=/work/target/package/src=/usr/src/bzip2-1.0.8-5.1build0.1+safelibs1 -Wall -Winline' CPPFLAGS='-Wdate-time -D_FORTIFY_SOURCE=3 -D_REENTRANT -D_FILE_OFFSET_BITS=64' LDFLAGS='-Wl,-Bsymbolic-functions -flto=auto -ffat-lto-objects -Wl,-z,relro -Wl,-z,now' \
+  scripts/build-original-cli-against-safe.sh \
+    --source-root /work/target/package/src \
+    --output-dir /work/target/package/src/../install/root/usr/bin \
+    --lib-dir /work/target/package/src/../cargo/release \
+    --include-dir /work/target/package/src/include
+/work/target/package/src/bzip2.c: In function 'applySavedFileAttrToOutputFile':
+/work/target/package/src/bzip2.c:1073:11: warning: ignoring return value of 'fchown' declared with attribute 'warn_unused_result' [-Wunused-result]
+ 1073 |    (void) fchown ( fd, fileMetaInfo.st_uid, fileMetaInfo.st_gid );
+      |           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+make[1]: Leaving directory '/work/target/package/src'
+   debian/rules override_dh_auto_build-indep
+make[1]: Entering directory '/work/target/package/src'
+make[1]: Nothing to be done for 'override_dh_auto_build-indep'.
+make[1]: Leaving directory '/work/target/package/src'
+   debian/rules override_dh_auto_test-arch
+make[1]: Entering directory '/work/target/package/src'
+cargo test --manifest-path Cargo.toml --release --locked --offline --lib
+   Compiling libbz2-safe v1.0.8+phase1 (/work/target/package/src)
+    Finished release [optimized] target(s) in 0.95s
+     Running unittests src/lib.rs (../cargo/release/deps/bz2-d2e6a6ff257e9776)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+make[1]: Leaving directory '/work/target/package/src'
+   create-stamp debian/debhelper-build-stamp
+ fakeroot debian/rules binary
+dh binary
+   dh_testroot
+   dh_prep
+   debian/rules override_dh_auto_install-arch
+make[1]: Entering directory '/work/target/package/src'
+mkdir -p debian/tmp/usr/lib/x86_64-linux-gnu debian/tmp/usr/include
+mkdir -p debian/tmp/usr/bin
+cp -a /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4 debian/tmp/usr/lib/x86_64-linux-gnu/
+ln -sf libbz2.so.1.0.4 debian/tmp/usr/lib/x86_64-linux-gnu/libbz2.so.1.0
+cp -a /work/target/package/src/../install/root/usr/lib/x86_64-linux-gnu/libbz2.a debian/tmp/usr/lib/x86_64-linux-gnu/
+cp -a /work/target/package/src/../install/root/usr/include/bzlib.h debian/tmp/usr/include/
+cp -a /work/target/package/src/../install/root/usr/bin/bzip2 debian/tmp/usr/bin/
+cp -a /work/target/package/src/../install/root/usr/bin/bzip2recover debian/tmp/usr/bin/
+cp -a /work/target/package/src/../install/root/usr/bin/bzdiff debian/tmp/usr/bin/
+cp -a /work/target/package/src/../install/root/usr/bin/bzgrep debian/tmp/usr/bin/
+cp -a /work/target/package/src/../install/root/usr/bin/bzmore debian/tmp/usr/bin/
+make[1]: Leaving directory '/work/target/package/src'
+   dh_install
+   debian/rules override_dh_installdocs
+make[1]: Entering directory '/work/target/package/src'
+dh_installdocs -plibbz2-dev --link-doc=libbz2-1.0
+dh_installdocs --remaining-packages
+make[1]: Leaving directory '/work/target/package/src'
+   dh_installchangelogs
+   dh_installman
+   dh_installinfo
+   dh_perl
+   debian/rules override_dh_link
+make[1]: Entering directory '/work/target/package/src'
+dh_link -plibbz2-1.0 usr/lib/x86_64-linux-gnu/libbz2.so.1.0.4 \
+                     usr/lib/x86_64-linux-gnu/libbz2.so.1
+dh_link -plibbz2-dev usr/lib/x86_64-linux-gnu/libbz2.so.1.0 \
+                     usr/lib/x86_64-linux-gnu/libbz2.so
+dh_link --remaining-packages
+make[1]: Leaving directory '/work/target/package/src'
+   dh_strip_nondeterminism
+   dh_compress
+   dh_fixperms
+   debian/rules override_dh_missing
+make[1]: Entering directory '/work/target/package/src'
+dh_missing --fail-missing
+make[1]: Leaving directory '/work/target/package/src'
+   dh_dwz -a
+   dh_strip -a
+7767698806b9596c55d2151abe6b6d1abfcf22e1
+debugedit: debian/bzip2/usr/bin/bzip2recover: Unknown DWARF DW_FORM_0x1f20
+debugedit: debian/bzip2/usr/bin/bzip2: Unknown DWARF DW_FORM_0x1f20
+d3666426becf58a00b251303da77751beec242ce
+033f9fcda602c8a33734be73667b0d22ada50024
+   dh_makeshlibs -a
+   dh_shlibdeps -a
+dpkg-shlibdeps: warning: diversions involved - output may be incorrect
+ diversion by libc6 from: /lib64/ld-linux-x86-64.so.2
+dpkg-shlibdeps: warning: diversions involved - output may be incorrect
+ diversion by libc6 to: /lib64/ld-linux-x86-64.so.2.usr-is-merged
+   dh_installdeb
+   dh_gencontrol
+   dh_md5sums
+   dh_builddeb
+dpkg-deb: building package 'libbz2-1.0' in '../libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb'.
+dpkg-deb: building package 'libbz2-dev' in '../libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb'.
+dpkg-deb: building package 'bzip2' in '../bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb'.
+dpkg-deb: building package 'bzip2-doc' in '../bzip2-doc_1.0.8-5.1build0.1+safelibs1_all.deb'.
+dpkg-deb: building package 'libbz2-1.0-dbgsym' in 'debian/.debhelper/scratch-space/build-libbz2-1.0/libbz2-1.0-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.deb'.
+dpkg-deb: building package 'bzip2-dbgsym' in 'debian/.debhelper/scratch-space/build-bzip2/bzip2-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.deb'.
+	Renaming bzip2-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.deb to bzip2-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.ddeb
+	Renaming libbz2-1.0-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.deb to libbz2-1.0-dbgsym_1.0.8-5.1build0.1+safelibs1_amd64.ddeb
+ dpkg-genbuildinfo --build=binary -O../bzip2_1.0.8-5.1build0.1+safelibs1_amd64.buildinfo
+ dpkg-genchanges --build=binary -O../bzip2_1.0.8-5.1build0.1+safelibs1_amd64.changes
+dpkg-genchanges: info: binary-only upload (no source code included)
+ dpkg-source --after-build .
+dpkg-source: info: using options from src/debian/source/options: --compression=bzip2 --compression-level=9
+dpkg-buildpackage: info: binary-only upload (no source included)

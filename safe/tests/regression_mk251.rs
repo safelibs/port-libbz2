@@ -10,6 +10,11 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const SAMPLE1_REF: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../original/sample1.ref"
+));
+
 fn zeroed_stream() -> bz_stream {
     unsafe { MaybeUninit::<bz_stream>::zeroed().assume_init() }
 }
@@ -27,6 +32,15 @@ fn temp_path(label: &str) -> PathBuf {
         "libbz2-safe-{label}-{stamp}-{}",
         std::process::id()
     ))
+}
+
+fn repeat_to_size(seed: &[u8], target_size: usize) -> Vec<u8> {
+    let mut output = Vec::with_capacity(target_size);
+    while output.len() < target_size {
+        let remaining = target_size - output.len();
+        output.extend_from_slice(&seed[..seed.len().min(remaining)]);
+    }
+    output
 }
 
 fn compress_via_stream(source: &[u8], block_size_100k: i32) -> Vec<u8> {
@@ -92,10 +106,9 @@ fn decompress_all(source: &[u8], expected_len: usize) -> Vec<u8> {
     dest
 }
 
-#[test]
-fn mk251_regression_preserves_the_blocksort_1007_fix() {
-    let payload = vec![251u8; 1_250_000];
-    let compressed = compress_via_stream(&payload, 9);
+fn assert_mk251_case(payload_len: usize, block_size_100k: i32) {
+    let payload = vec![251u8; payload_len];
+    let compressed = compress_via_stream(&payload, block_size_100k);
 
     assert_eq!(decompress_all(&compressed, payload.len()), payload);
 
@@ -110,7 +123,7 @@ fn mk251_regression_preserves_the_blocksort_1007_fix() {
         .canonicalize()
         .unwrap();
     let output = Command::new(original_bzip2)
-        .arg("-9c")
+        .arg(format!("-{block_size_100k}c"))
         .arg(&input_path)
         .output()
         .expect("run upstream bzip2 for mk251 oracle");
@@ -123,6 +136,50 @@ fn mk251_regression_preserves_the_blocksort_1007_fix() {
     fs::remove_file(input_path).unwrap();
     assert_eq!(
         compressed, output.stdout,
-        "mk251 compressor drifted from upstream"
+        "mk251 compressor drifted from upstream for payload_len={payload_len} block_size={block_size_100k}"
+    );
+}
+
+#[test]
+fn mk251_regression_preserves_the_blocksort_1007_fix() {
+    // The original mk251 reproducer is a long run of byte 251. Keep both the classic oversized
+    // case and a near-block-boundary variant so the 1007 fix stays covered across block splits.
+    for &(payload_len, block_size_100k) in &[(900_001usize, 9), (1_250_000usize, 9)] {
+        assert_mk251_case(payload_len, block_size_100k);
+    }
+}
+
+#[test]
+fn blocksort_large_repeated_text_regression_matches_upstream() {
+    let payload = repeat_to_size(SAMPLE1_REF, 16 * 1024 * 1024);
+    let compressed = compress_via_stream(&payload, 9);
+
+    assert_eq!(decompress_all(&compressed, payload.len()), payload);
+
+    let input_path = temp_path("blocksort-large-text");
+    fs::File::create(&input_path)
+        .unwrap()
+        .write_all(&payload)
+        .unwrap();
+
+    let original_bzip2 = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../original/bzip2")
+        .canonicalize()
+        .unwrap();
+    let output = Command::new(original_bzip2)
+        .arg("-9c")
+        .arg(&input_path)
+        .output()
+        .expect("run upstream bzip2 for large-text oracle");
+    assert!(
+        output.status.success(),
+        "upstream large-text oracle failed: {:?}",
+        output.status
+    );
+
+    fs::remove_file(input_path).unwrap();
+    assert_eq!(
+        compressed, output.stdout,
+        "large repeated-text compressor drifted from upstream"
     );
 }

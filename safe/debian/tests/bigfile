@@ -1,5 +1,9 @@
 #!/bin/sh
 set -C -e -f -u
 cd "$AUTOPKGTEST_TMP"
+expected_size=$((2049 * 1024 * 1024))
 truncate -s 2049M bigfile
-bzip2 bigfile
+[ "$(stat -c %s bigfile)" = "$expected_size" ]
+bzip2 -k bigfile
+[ -s bigfile.bz2 ]
+bzip2 -t bigfile.bz2

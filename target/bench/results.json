@@ -1,0 +1,119 @@
+{
+  "generated_at_utc": "2026-04-06T03:55:41.903121+00:00",
+  "runs_per_case": 3,
+  "baseline_cli": "target/original-baseline/bzip2",
+  "safe_cli": "target/compat/bzip2",
+  "cases": [
+    {
+      "case": "textual-16m",
+      "input_bytes": 16777216,
+      "compressed_bytes": 1112642,
+      "compression": {
+        "baseline_runs_s": [
+          0.8643671819008887,
+          0.8648564820177853,
+          0.8651824791450053
+        ],
+        "safe_runs_s": [
+          1.4510584401432425,
+          1.45307097886689,
+          1.4590911990962923
+        ],
+        "baseline_median_s": 0.8648564820177853,
+        "safe_median_s": 1.45307097886689
+      },
+      "decompression": {
+        "baseline_runs_s": [
+          0.2087797678541392,
+          0.21962307207286358,
+          0.21612656000070274
+        ],
+        "safe_runs_s": [
+          0.22473428491503,
+          0.21815989608876407,
+          0.21661034994758666
+        ],
+        "baseline_median_s": 0.21612656000070274,
+        "safe_median_s": 0.21815989608876407
+      },
+      "sha256": {
+        "input": "862a5d922ae31c37090540d6b4a4e06e5de86d22a4e1d325182c3fd141899f91",
+        "compressed": "ced4affed3071ca14c70cf8c6c23aa1693d077286ef697775fe24aa584fcd1db"
+      }
+    },
+    {
+      "case": "mixed-24m",
+      "input_bytes": 25165824,
+      "compressed_bytes": 3827707,
+      "compression": {
+        "baseline_runs_s": [
+          3.9023462189361453,
+          3.8684564710129052,
+          3.925978999119252
+        ],
+        "safe_runs_s": [
+          5.934559389017522,
+          5.882012736983597,
+          5.914564707083628
+        ],
+        "baseline_median_s": 3.9023462189361453,
+        "safe_median_s": 5.914564707083628
+      },
+      "decompression": {
+        "baseline_runs_s": [
+          0.32261924911290407,
+          0.3198600299656391,
+          0.31722807395271957
+        ],
+        "safe_runs_s": [
+          0.3239536138717085,
+          0.33151450916193426,
+          0.33132775500416756
+        ],
+        "baseline_median_s": 0.3198600299656391,
+        "safe_median_s": 0.33132775500416756
+      },
+      "sha256": {
+        "input": "585eda7401aeb258ee092cdfc8f10fcd6ed7eb83019f61abd5866f2500062414",
+        "compressed": "ddd7637f36aa4c7f81f411f124a4659fd832a1c61241481f74a433b98a801e8e"
+      }
+    },
+    {
+      "case": "random-8m",
+      "input_bytes": 8388608,
+      "compressed_bytes": 8425793,
+      "compression": {
+        "baseline_runs_s": [
+          0.4784352339338511,
+          0.4753334301058203,
+          0.4502459189388901
+        ],
+        "safe_runs_s": [
+          0.4083901811391115,
+          0.40068281604908407,
+          0.4056538389995694
+        ],
+        "baseline_median_s": 0.4753334301058203,
+        "safe_median_s": 0.4056538389995694
+      },
+      "decompression": {
+        "baseline_runs_s": [
+          0.28253849782049656,
+          0.2852196409367025,
+          0.28098043892532587
+        ],
+        "safe_runs_s": [
+          0.35163548891432583,
+          0.3200191801879555,
+          0.3202121469657868
+        ],
+        "baseline_median_s": 0.28253849782049656,
+        "safe_median_s": 0.3202121469657868
+      },
+      "sha256": {
+        "input": "04a7132d420e1784950173044b4e7fb4b5548d6f13109f4e29be00e5e0e3c723",
+        "compressed": "d848c8ead89c17ffd4c8a60f28fa58eedcedbd5c06fd1e2d96208898d2e5ee28"
+      }
+    }
+  ]
+}

@@ -716,30 +716,30 @@ unsafe fn mainSort(
         ftab[i] = 0;
     }
 
-    let mut j = (storage.block_get(0) as UInt16) << 8;
+    let mut j = (storage.block_get(0) as UInt32) << 8;
     let mut i = nblock - 1;
     while i >= 3 {
         storage.quadrant_set(i as usize, 0);
-        j = (j >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
+        j = (j >> 8) | ((storage.block_get(i as usize) as UInt32) << 8);
         ftab[j as usize] += 1;
 
         storage.quadrant_set((i - 1) as usize, 0);
-        j = (j >> 8) | ((storage.block_get((i - 1) as usize) as UInt16) << 8);
+        j = (j >> 8) | ((storage.block_get((i - 1) as usize) as UInt32) << 8);
         ftab[j as usize] += 1;
 
         storage.quadrant_set((i - 2) as usize, 0);
-        j = (j >> 8) | ((storage.block_get((i - 2) as usize) as UInt16) << 8);
+        j = (j >> 8) | ((storage.block_get((i - 2) as usize) as UInt32) << 8);
         ftab[j as usize] += 1;
 
         storage.quadrant_set((i - 3) as usize, 0);
-        j = (j >> 8) | ((storage.block_get((i - 3) as usize) as UInt16) << 8);
+        j = (j >> 8) | ((storage.block_get((i - 3) as usize) as UInt32) << 8);
         ftab[j as usize] += 1;
 
         i -= 4;
     }
     while i >= 0 {
         storage.quadrant_set(i as usize, 0);
-        j = (j >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
+        j = (j >> 8) | ((storage.block_get(i as usize) as UInt32) << 8);
         ftab[j as usize] += 1;
         i -= 1;
     }
@@ -755,36 +755,36 @@ unsafe fn mainSort(
         ftab[i] += ftab[i - 1];
     }
 
-    let mut s = (storage.block_get(0) as UInt16) << 8;
+    let mut s = (storage.block_get(0) as UInt32) << 8;
     let mut i = nblock - 1;
     while i >= 3 {
-        s = (s >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
-        j = ftab[s as usize].wrapping_sub(1) as UInt16;
-        ftab[s as usize] = j as UInt32;
-        ptr[j as usize] = i as UInt32;
+        s = (s >> 8) | ((storage.block_get(i as usize) as UInt32) << 8);
+        let bucket = ftab[s as usize].wrapping_sub(1);
+        ftab[s as usize] = bucket;
+        ptr[bucket as usize] = i as UInt32;
 
-        s = (s >> 8) | ((storage.block_get((i - 1) as usize) as UInt16) << 8);
-        j = ftab[s as usize].wrapping_sub(1) as UInt16;
-        ftab[s as usize] = j as UInt32;
-        ptr[j as usize] = (i - 1) as UInt32;
+        s = (s >> 8) | ((storage.block_get((i - 1) as usize) as UInt32) << 8);
+        let bucket = ftab[s as usize].wrapping_sub(1);
+        ftab[s as usize] = bucket;
+        ptr[bucket as usize] = (i - 1) as UInt32;
 
-        s = (s >> 8) | ((storage.block_get((i - 2) as usize) as UInt16) << 8);
-        j = ftab[s as usize].wrapping_sub(1) as UInt16;
-        ftab[s as usize] = j as UInt32;
-        ptr[j as usize] = (i - 2) as UInt32;
+        s = (s >> 8) | ((storage.block_get((i - 2) as usize) as UInt32) << 8);
+        let bucket = ftab[s as usize].wrapping_sub(1);
+        ftab[s as usize] = bucket;
+        ptr[bucket as usize] = (i - 2) as UInt32;
 
-        s = (s >> 8) | ((storage.block_get((i - 3) as usize) as UInt16) << 8);
-        j = ftab[s as usize].wrapping_sub(1) as UInt16;
-        ftab[s as usize] = j as UInt32;
-        ptr[j as usize] = (i - 3) as UInt32;
+        s = (s >> 8) | ((storage.block_get((i - 3) as usize) as UInt32) << 8);
+        let bucket = ftab[s as usize].wrapping_sub(1);
+        ftab[s as usize] = bucket;
+        ptr[bucket as usize] = (i - 3) as UInt32;
 
         i -= 4;
     }
     while i >= 0 {
-        s = (s >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
-        j = ftab[s as usize].wrapping_sub(1) as UInt16;
-        ftab[s as usize] = j as UInt32;
-        ptr[j as usize] = i as UInt32;
+        s = (s >> 8) | ((storage.block_get(i as usize) as UInt32) << 8);
+        let bucket = ftab[s as usize].wrapping_sub(1);
+        ftab[s as usize] = bucket;
+        ptr[bucket as usize] = i as UInt32;
         i -= 1;
     }
 

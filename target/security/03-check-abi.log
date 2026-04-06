@@ -1,0 +1,1 @@
++ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/check-abi.sh --strict

@@ -1,0 +1,2 @@
++ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/build-safe.sh --release
+    Finished `release` profile [optimized] target(s) in 0.00s

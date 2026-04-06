@@ -1,0 +1,18 @@
+libbz2 benchmark comparison
+generated_at_utc=2026-04-06T03:55:41.903255+00:00
+runs_per_case=3
+baseline_cli=target/original-baseline/bzip2
+safe_cli=target/compat/bzip2
+note=performance is informational only; this script fails only on correctness drift or missing artifacts.
+
+Compression (median seconds)
+case	input_bytes	compressed_bytes	baseline_s	safe_s	safe_over_baseline
+textual-16m	16777216	1112642	0.864856	1.453071	1.680x
+mixed-24m	25165824	3827707	3.902346	5.914565	1.516x
+random-8m	8388608	8425793	0.475333	0.405654	0.853x
+
+Decompression (median seconds)
+case	compressed_bytes	output_bytes	baseline_s	safe_s	safe_over_baseline
+textual-16m	1112642	16777216	0.216127	0.218160	1.009x
+mixed-24m	3827707	25165824	0.319860	0.331328	1.036x
+random-8m	8425793	8388608	0.282538	0.320212	1.133x

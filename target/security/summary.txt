@@ -1,0 +1,13 @@
+release_gate=impl_06_final_hardening_and_release_gate
+log_root=target/security
+benchmark_summary=target/bench/summary.txt
+log=01-cargo-test.log
+log=02-build-safe.log
+log=03-check-abi.log
+log=04-link-original.log
+log=05-build-original-cli.log
+log=06-build-debs.log
+log=07-check-package-layout.log
+log=08-run-debian-tests.log
+log=09-test-original.log
+log=10-benchmark.log

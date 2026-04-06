@@ -1,0 +1,28 @@
++ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/run-debian-tests.sh --tests link-with-shared bigfile bzexe-test compare compress grep
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 DONE 0.0s
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 212B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/ubuntu:24.04
+#2 DONE 0.0s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/2] FROM docker.io/library/ubuntu:24.04
+#4 DONE 0.0s
+
+#5 [2/2] RUN apt-get update  && apt-get install -y --no-install-recommends ca-certificates  && rm -rf /var/lib/apt/lists/*
+#5 CACHED
+
+#6 exporting to image
+#6 exporting layers done
+#6 writing image sha256:51504cd15961fe10900a6fd72988bb7603d79a6b99c76d04c840fcdebd0292b8 done
+#6 naming to docker.io/library/libbz2-safe-deb-test:ubuntu24.04 done
+#6 DONE 0.0s

@@ -3,7 +3,11 @@ set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE_TAG="${LIBBZ2_ORIGINAL_TEST_IMAGE:-libbz2-original-test:ubuntu24.04}"
+PACKAGE_OUT="$ROOT/target/package/out"
+PACKAGE_MANIFEST="$PACKAGE_OUT/package-manifest.txt"
 ONLY=""
+PACKAGE_DEBS=()
+REQUIRED_PACKAGES=(libbz2-1.0 libbz2-dev bzip2 bzip2-doc)
 
 usage() {
   cat <<'EOF'
@@ -47,12 +51,6 @@ done
   exit 1
 }
 
-PACKAGE_MANIFEST="$ROOT/target/package/out/package-manifest.txt"
-[[ -f "$PACKAGE_MANIFEST" ]] || {
-  echo "missing package manifest: $PACKAGE_MANIFEST; run bash safe/scripts/build-debs.sh first" >&2
-  exit 1
-}
-
 lookup_manifest_value() {
   local key="$1"
   local value=""
@@ -65,15 +63,25 @@ lookup_manifest_value() {
   printf '%s\n' "$value"
 }
 
-PACKAGE_DEBS=()
-for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
-  deb_name="$(lookup_manifest_value "package:$pkg")"
-  [[ -f "$ROOT/target/package/out/$deb_name" ]] || {
-    printf 'required package artifact missing from target/package/out: %s\n' "$deb_name" >&2
+require_host_package_artifacts() {
+  [[ -f "$PACKAGE_MANIFEST" ]] || {
+    echo "missing package manifest: $PACKAGE_MANIFEST; run bash safe/scripts/build-debs.sh first" >&2
     exit 1
   }
-  PACKAGE_DEBS+=( "/work/target/package/out/$deb_name" )
-done
+
+  PACKAGE_DEBS=()
+  for pkg in "${REQUIRED_PACKAGES[@]}"; do
+    local deb_name=""
+    deb_name="$(lookup_manifest_value "package:$pkg")"
+    [[ -f "$PACKAGE_OUT/$deb_name" ]] || {
+      echo "required package artifact missing from $PACKAGE_OUT: $deb_name" >&2
+      exit 1
+    }
+    PACKAGE_DEBS+=( "/work/target/package/out/$deb_name" )
+  done
+}
+
+require_host_package_artifacts
 
 python3 - "$ROOT/dependents.json" "$ONLY" <<'PY'
 import json

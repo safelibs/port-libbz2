@@ -1,0 +1,19 @@
++ bash /home/yans/code/safelibs/ported/libbz2/safe/scripts/benchmark-compare.sh
+libbz2 benchmark comparison
+generated_at_utc=2026-04-06T03:53:41.670765+00:00
+runs_per_case=3
+baseline_cli=target/original-baseline/bzip2
+safe_cli=target/compat/bzip2
+note=performance is informational only; this script fails only on correctness drift or missing artifacts.
+
+Compression (median seconds)
+case	input_bytes	compressed_bytes	baseline_s	safe_s	safe_over_baseline
+textual-16m	16777216	1112642	0.877080	1.472857	1.679x
+mixed-24m	25165824	3827707	3.891784	5.920268	1.521x
+random-8m	8388608	8425793	0.450977	0.402285	0.892x
+
+Decompression (median seconds)
+case	compressed_bytes	output_bytes	baseline_s	safe_s	safe_over_baseline
+textual-16m	1112642	16777216	0.215231	0.217980	1.013x
+mixed-24m	3827707	25165824	0.318294	0.323914	1.018x
+random-8m	8425793	8388608	0.284699	0.322180	1.132x
