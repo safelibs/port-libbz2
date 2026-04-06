@@ -69,6 +69,49 @@ fn block_byte_capacity(block_cap: usize) -> usize {
     (block_cap + BZ_N_OVERSHOOT as usize) * core::mem::size_of::<UInt32>()
 }
 
+struct MainSortStorage<'a> {
+    storage: &'a mut [UChar],
+    quadrant_offset: usize,
+}
+
+impl<'a> MainSortStorage<'a> {
+    #[inline]
+    fn new(storage: &'a mut [UChar], nblock: Int32) -> Self {
+        let mut quadrant_offset = usize::try_from(nblock + BZ_N_OVERSHOOT).unwrap();
+        if (quadrant_offset & 1) != 0 {
+            quadrant_offset += 1;
+        }
+        Self {
+            storage,
+            quadrant_offset,
+        }
+    }
+
+    #[inline]
+    fn block_get(&self, idx: usize) -> UChar {
+        self.storage[idx]
+    }
+
+    #[inline]
+    fn block_set(&mut self, idx: usize, value: UChar) {
+        self.storage[idx] = value;
+    }
+
+    #[inline]
+    fn quadrant_get(&self, idx: usize) -> UInt16 {
+        let base = self.quadrant_offset + idx * core::mem::size_of::<UInt16>();
+        UInt16::from_ne_bytes([self.storage[base], self.storage[base + 1]])
+    }
+
+    #[inline]
+    fn quadrant_set(&mut self, idx: usize, value: UInt16) {
+        let base = self.quadrant_offset + idx * core::mem::size_of::<UInt16>();
+        let [lo, hi] = value.to_ne_bytes();
+        self.storage[base] = lo;
+        self.storage[base + 1] = hi;
+    }
+}
+
 #[inline]
 unsafe fn bh_set(bhtab: &mut [UInt32], idx: Int32) {
     let word = usize::try_from(idx >> 5).unwrap();
@@ -291,64 +334,66 @@ unsafe fn fallbackSort(
     }
 
     let mut h = 1;
-    let eclass = slice::from_raw_parts_mut(eclass_ptr, nblock_usize);
     loop {
-        let mut j = 0;
-        for i in 0..nblock {
-            if bh_is_set(bhtab, i) {
-                j = i;
-            }
-            let mut k = fmap[i as usize] as Int32 - h;
-            if k < 0 {
-                k += nblock;
-            }
-            eclass[k as usize] = j as UInt32;
-        }
-
         let mut n_not_done = 0;
-        let mut r = -1;
-        loop {
-            let mut k = r + 1;
-            while bh_is_set(bhtab, k) && unaligned_bh(k) != 0 {
-                k += 1;
-            }
-            if bh_is_set(bhtab, k) {
-                while bh_word(bhtab, k) == 0xffff_ffff {
-                    k += 32;
+        {
+            let eclass = slice::from_raw_parts_mut(eclass_ptr, nblock_usize);
+            let mut j = 0;
+            for i in 0..nblock {
+                if bh_is_set(bhtab, i) {
+                    j = i;
                 }
-                while bh_is_set(bhtab, k) {
-                    k += 1;
+                let mut k = fmap[i as usize] as Int32 - h;
+                if k < 0 {
+                    k += nblock;
                 }
-            }
-            let l = k - 1;
-            if l >= nblock {
-                break;
-            }
-            while !bh_is_set(bhtab, k) && unaligned_bh(k) != 0 {
-                k += 1;
-            }
-            if !bh_is_set(bhtab, k) {
-                while bh_word(bhtab, k) == 0 {
-                    k += 32;
-                }
-                while !bh_is_set(bhtab, k) {
-                    k += 1;
-                }
-            }
-            r = k - 1;
-            if r >= nblock {
-                break;
+                eclass[k as usize] = j as UInt32;
             }
 
-            if r > l {
-                n_not_done += r - l + 1;
-                fallbackQSort3(fmap, eclass, l, r);
-                let mut cc = -1;
-                for i in l..=r {
-                    let cc1 = eclass[fmap[i as usize] as usize] as Int32;
-                    if cc != cc1 {
-                        bh_set(bhtab, i);
-                        cc = cc1;
+            let mut r = -1;
+            loop {
+                let mut k = r + 1;
+                while bh_is_set(bhtab, k) && unaligned_bh(k) != 0 {
+                    k += 1;
+                }
+                if bh_is_set(bhtab, k) {
+                    while bh_word(bhtab, k) == 0xffff_ffff {
+                        k += 32;
+                    }
+                    while bh_is_set(bhtab, k) {
+                        k += 1;
+                    }
+                }
+                let l = k - 1;
+                if l >= nblock {
+                    break;
+                }
+                while !bh_is_set(bhtab, k) && unaligned_bh(k) != 0 {
+                    k += 1;
+                }
+                if !bh_is_set(bhtab, k) {
+                    while bh_word(bhtab, k) == 0 {
+                        k += 32;
+                    }
+                    while !bh_is_set(bhtab, k) {
+                        k += 1;
+                    }
+                }
+                r = k - 1;
+                if r >= nblock {
+                    break;
+                }
+
+                if r > l {
+                    n_not_done += r - l + 1;
+                    fallbackQSort3(fmap, eclass, l, r);
+                    let mut cc = -1;
+                    for i in l..=r {
+                        let cc1 = eclass[fmap[i as usize] as usize] as Int32;
+                        if cc != cc1 {
+                            bh_set(bhtab, i);
+                            cc = cc1;
+                        }
                     }
                 }
             }
@@ -377,15 +422,14 @@ unsafe fn fallbackSort(
 unsafe fn mainGtU(
     mut i1: UInt32,
     mut i2: UInt32,
-    block: &[UChar],
-    quadrant: &[UInt16],
+    storage: &MainSortStorage<'_>,
     nblock: UInt32,
     budget: &mut Int32,
 ) -> Bool {
     macro_rules! cmp_byte {
         () => {{
-            let c1 = block[i1 as usize];
-            let c2 = block[i2 as usize];
+            let c1 = storage.block_get(i1 as usize);
+            let c2 = storage.block_get(i2 as usize);
             if c1 != c2 {
                 return as_bool(c1 > c2);
             }
@@ -410,13 +454,13 @@ unsafe fn mainGtU(
     let mut k = nblock as Int32 + 8;
     loop {
         for _ in 0..8 {
-            let c1 = block[i1 as usize];
-            let c2 = block[i2 as usize];
+            let c1 = storage.block_get(i1 as usize);
+            let c2 = storage.block_get(i2 as usize);
             if c1 != c2 {
                 return as_bool(c1 > c2);
             }
-            let s1 = quadrant[i1 as usize];
-            let s2 = quadrant[i2 as usize];
+            let s1 = storage.quadrant_get(i1 as usize);
+            let s2 = storage.quadrant_get(i2 as usize);
             if s1 != s2 {
                 return as_bool(s1 > s2);
             }
@@ -443,8 +487,7 @@ unsafe fn mainGtU(
 
 unsafe fn mainSimpleSort(
     ptr: &mut [UInt32],
-    block: &[UChar],
-    quadrant: &[UInt16],
+    storage: &MainSortStorage<'_>,
     nblock: Int32,
     lo: Int32,
     hi: Int32,
@@ -475,8 +518,7 @@ unsafe fn mainSimpleSort(
                 while mainGtU(
                     ptr[(j - h) as usize] + d as UInt32,
                     v + d as UInt32,
-                    block,
-                    quadrant,
+                    storage,
                     nblock as UInt32,
                     budget,
                 ) != 0
@@ -504,8 +546,7 @@ unsafe fn mainSimpleSort(
 
 unsafe fn mainQSort3(
     ptr: &mut [UInt32],
-    block: &[UChar],
-    quadrant: &[UInt16],
+    storage: &MainSortStorage<'_>,
     nblock: Int32,
     lo_st: Int32,
     hi_st: Int32,
@@ -530,7 +571,7 @@ unsafe fn mainQSort3(
         let d = stack_d[sp];
 
         if hi - lo < MAIN_QSORT_SMALL_THRESH || d > MAIN_QSORT_DEPTH_THRESH {
-            mainSimpleSort(ptr, block, quadrant, nblock, lo, hi, d, budget);
+            mainSimpleSort(ptr, storage, nblock, lo, hi, d, budget);
             if *budget < 0 {
                 return;
             }
@@ -538,9 +579,9 @@ unsafe fn mainQSort3(
         }
 
         let med = mmed3(
-            block[(ptr[lo as usize] + d as UInt32) as usize],
-            block[(ptr[hi as usize] + d as UInt32) as usize],
-            block[(ptr[((lo + hi) >> 1) as usize] + d as UInt32) as usize],
+            storage.block_get((ptr[lo as usize] + d as UInt32) as usize),
+            storage.block_get((ptr[hi as usize] + d as UInt32) as usize),
+            storage.block_get((ptr[((lo + hi) >> 1) as usize] + d as UInt32) as usize),
         ) as Int32;
 
         let mut un_lo = lo;
@@ -553,7 +594,8 @@ unsafe fn mainQSort3(
                 if un_lo > un_hi {
                     break;
                 }
-                let n = block[(ptr[un_lo as usize] + d as UInt32) as usize] as Int32 - med;
+                let n =
+                    storage.block_get((ptr[un_lo as usize] + d as UInt32) as usize) as Int32 - med;
                 if n == 0 {
                     ptr.swap(un_lo as usize, lt_lo as usize);
                     lt_lo += 1;
@@ -569,7 +611,8 @@ unsafe fn mainQSort3(
                 if un_lo > un_hi {
                     break;
                 }
-                let n = block[(ptr[un_hi as usize] + d as UInt32) as usize] as Int32 - med;
+                let n =
+                    storage.block_get((ptr[un_hi as usize] + d as UInt32) as usize) as Int32 - med;
                 if n == 0 {
                     ptr.swap(un_hi as usize, gt_hi as usize);
                     gt_hi -= 1;
@@ -656,8 +699,7 @@ unsafe fn mainQSort3(
 
 unsafe fn mainSort(
     ptr: &mut [UInt32],
-    block: &mut [UChar],
-    quadrant: &mut [UInt16],
+    storage: &mut MainSortStorage<'_>,
     ftab: &mut [UInt32],
     nblock: Int32,
     verb: Int32,
@@ -674,63 +716,64 @@ unsafe fn mainSort(
         ftab[i] = 0;
     }
 
-    let mut j = (block[0] as UInt16) << 8;
+    let mut j = (storage.block_get(0) as UInt16) << 8;
     let mut i = nblock - 1;
     while i >= 3 {
-        quadrant[i as usize] = 0;
-        j = (j >> 8) | ((block[i as usize] as UInt16) << 8);
+        storage.quadrant_set(i as usize, 0);
+        j = (j >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
         ftab[j as usize] += 1;
 
-        quadrant[(i - 1) as usize] = 0;
-        j = (j >> 8) | ((block[(i - 1) as usize] as UInt16) << 8);
+        storage.quadrant_set((i - 1) as usize, 0);
+        j = (j >> 8) | ((storage.block_get((i - 1) as usize) as UInt16) << 8);
         ftab[j as usize] += 1;
 
-        quadrant[(i - 2) as usize] = 0;
-        j = (j >> 8) | ((block[(i - 2) as usize] as UInt16) << 8);
+        storage.quadrant_set((i - 2) as usize, 0);
+        j = (j >> 8) | ((storage.block_get((i - 2) as usize) as UInt16) << 8);
         ftab[j as usize] += 1;
 
-        quadrant[(i - 3) as usize] = 0;
-        j = (j >> 8) | ((block[(i - 3) as usize] as UInt16) << 8);
+        storage.quadrant_set((i - 3) as usize, 0);
+        j = (j >> 8) | ((storage.block_get((i - 3) as usize) as UInt16) << 8);
         ftab[j as usize] += 1;
 
         i -= 4;
     }
     while i >= 0 {
-        quadrant[i as usize] = 0;
-        j = (j >> 8) | ((block[i as usize] as UInt16) << 8);
+        storage.quadrant_set(i as usize, 0);
+        j = (j >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
         ftab[j as usize] += 1;
         i -= 1;
     }
 
     let nblock_usize = usize::try_from(nblock).unwrap();
     for i in 0..BZ_N_OVERSHOOT as usize {
-        block[nblock_usize + i] = block[i];
-        quadrant[nblock_usize + i] = 0;
+        let byte = storage.block_get(i);
+        storage.block_set(nblock_usize + i, byte);
+        storage.quadrant_set(nblock_usize + i, 0);
     }
 
     for i in 1..=65_536usize {
         ftab[i] += ftab[i - 1];
     }
 
-    let mut s = (block[0] as UInt16) << 8;
+    let mut s = (storage.block_get(0) as UInt16) << 8;
     let mut i = nblock - 1;
     while i >= 3 {
-        s = (s >> 8) | ((block[i as usize] as UInt16) << 8);
+        s = (s >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
         j = ftab[s as usize].wrapping_sub(1) as UInt16;
         ftab[s as usize] = j as UInt32;
         ptr[j as usize] = i as UInt32;
 
-        s = (s >> 8) | ((block[(i - 1) as usize] as UInt16) << 8);
+        s = (s >> 8) | ((storage.block_get((i - 1) as usize) as UInt16) << 8);
         j = ftab[s as usize].wrapping_sub(1) as UInt16;
         ftab[s as usize] = j as UInt32;
         ptr[j as usize] = (i - 1) as UInt32;
 
-        s = (s >> 8) | ((block[(i - 2) as usize] as UInt16) << 8);
+        s = (s >> 8) | ((storage.block_get((i - 2) as usize) as UInt16) << 8);
         j = ftab[s as usize].wrapping_sub(1) as UInt16;
         ftab[s as usize] = j as UInt32;
         ptr[j as usize] = (i - 2) as UInt32;
 
-        s = (s >> 8) | ((block[(i - 3) as usize] as UInt16) << 8);
+        s = (s >> 8) | ((storage.block_get((i - 3) as usize) as UInt16) << 8);
         j = ftab[s as usize].wrapping_sub(1) as UInt16;
         ftab[s as usize] = j as UInt32;
         ptr[j as usize] = (i - 3) as UInt32;
@@ -738,7 +781,7 @@ unsafe fn mainSort(
         i -= 4;
     }
     while i >= 0 {
-        s = (s >> 8) | ((block[i as usize] as UInt16) << 8);
+        s = (s >> 8) | ((storage.block_get(i as usize) as UInt16) << 8);
         j = ftab[s as usize].wrapping_sub(1) as UInt16;
         ftab[s as usize] = j as UInt32;
         ptr[j as usize] = i as UInt32;
@@ -788,7 +831,7 @@ unsafe fn mainSort(
                 let lo = (ftab[sb as usize] & CLEARMASK) as Int32;
                 let hi = ((ftab[(sb + 1) as usize] & CLEARMASK) as Int32) - 1;
                 if hi > lo {
-                    mainQSort3(ptr, block, quadrant, nblock, lo, hi, BZ_N_RADIX, budget);
+                    mainQSort3(ptr, storage, nblock, lo, hi, BZ_N_RADIX, budget);
                     num_q_sorted += hi - lo + 1;
                     if *budget < 0 {
                         return;
@@ -811,7 +854,7 @@ unsafe fn mainSort(
             if k < 0 {
                 k += nblock;
             }
-            let c1 = block[k as usize];
+            let c1 = storage.block_get(k as usize);
             if big_done[c1 as usize] == 0 {
                 ptr[copy_start[c1 as usize] as usize] = k as UInt32;
                 copy_start[c1 as usize] += 1;
@@ -825,7 +868,7 @@ unsafe fn mainSort(
             if k < 0 {
                 k += nblock;
             }
-            let c1 = block[k as usize];
+            let c1 = storage.block_get(k as usize);
             if big_done[c1 as usize] == 0 {
                 ptr[copy_end[c1 as usize] as usize] = k as UInt32;
                 copy_end[c1 as usize] -= 1;
@@ -856,9 +899,9 @@ unsafe fn mainSort(
             while j >= 0 {
                 let a2update = ptr[(bb_start + j) as usize] as Int32;
                 let q_val = (j >> shifts) as UInt16;
-                quadrant[a2update as usize] = q_val;
+                storage.quadrant_set(a2update as usize, q_val);
                 if a2update < BZ_N_OVERSHOOT {
-                    quadrant[(a2update + nblock) as usize] = q_val;
+                    storage.quadrant_set((a2update + nblock) as usize, q_val);
                 }
                 j -= 1;
             }
@@ -882,21 +925,14 @@ pub unsafe extern "C" fn BZ2_blockSort(s: *mut EState) {
     let block_cap = block_capacity(s);
     let arr2_ptr = s.arr2;
     let ptr = slice::from_raw_parts_mut(s.arr1, block_cap);
-    let block = slice::from_raw_parts_mut(arr2_ptr.cast::<UChar>(), block_byte_capacity(block_cap));
     let ftab = slice::from_raw_parts_mut(s.ftab, 65_537);
 
     if nblock < 10_000 {
         fallbackSort(ptr, arr2_ptr, ftab, nblock, verb);
     } else {
-        let mut i = nblock + BZ_N_OVERSHOOT;
-        if (i & 1) != 0 {
-            i += 1;
-        }
-
-        let (_, quadrant_bytes) = block.split_at_mut(i as usize);
-        let quadrant_len = block_cap + BZ_N_OVERSHOOT as usize;
-        let quadrant =
-            slice::from_raw_parts_mut(quadrant_bytes.as_mut_ptr().cast::<UInt16>(), quadrant_len);
+        let storage =
+            slice::from_raw_parts_mut(arr2_ptr.cast::<UChar>(), block_byte_capacity(block_cap));
+        let mut storage = MainSortStorage::new(storage, nblock);
 
         if wfact < 1 {
             wfact = 1;
@@ -906,7 +942,7 @@ pub unsafe extern "C" fn BZ2_blockSort(s: *mut EState) {
         }
         let budget_init = nblock * ((wfact - 1) / 3);
         let mut budget = budget_init;
-        mainSort(ptr, block, quadrant, ftab, nblock, verb, &mut budget);
+        mainSort(ptr, &mut storage, ftab, nblock, verb, &mut budget);
         if budget < 0 {
             fallbackSort(ptr, arr2_ptr, ftab, nblock, verb);
         }

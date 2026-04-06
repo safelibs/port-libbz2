@@ -84,11 +84,6 @@ fn block_byte_capacity(block_size_100k: Int32) -> Option<usize> {
 }
 
 #[inline]
-unsafe fn ptr_storage<'a>(ptr: *const UInt32, block_size_100k: Int32) -> &'a [UInt32] {
-    slice::from_raw_parts(ptr, block_capacity(block_size_100k).unwrap())
-}
-
-#[inline]
 unsafe fn block_storage<'a>(block: *const UChar, block_size_100k: Int32) -> &'a [UChar] {
     slice::from_raw_parts(block, block_byte_capacity(block_size_100k).unwrap())
 }
@@ -101,11 +96,6 @@ unsafe fn block_storage_mut<'a>(block: *mut UChar, block_size_100k: Int32) -> &'
 #[inline]
 unsafe fn mtfv_storage<'a>(mtfv: *const UInt16, block_size_100k: Int32) -> &'a [UInt16] {
     slice::from_raw_parts(mtfv, block_capacity(block_size_100k).unwrap() * 2)
-}
-
-#[inline]
-unsafe fn mtfv_storage_mut<'a>(mtfv: *mut UInt16, block_size_100k: Int32) -> &'a mut [UInt16] {
-    slice::from_raw_parts_mut(mtfv, block_capacity(block_size_100k).unwrap() * 2)
 }
 
 #[inline]
@@ -137,8 +127,14 @@ fn push_block_byte(block: &mut [UChar], nblock: &mut Int32, byte: UChar) {
 }
 
 #[inline]
-fn push_mtf_value(mtfv: &mut [UInt16], wr: &mut Int32, value: UInt16) {
-    mtfv[usize::try_from(*wr).unwrap()] = value;
+unsafe fn ptr_value(ptr: *const UInt32, block_size_100k: Int32, idx: usize) -> UInt32 {
+    slice::from_raw_parts(ptr, block_capacity(block_size_100k).unwrap())[idx]
+}
+
+#[inline]
+unsafe fn push_mtf_value(mtfv: *mut UInt16, block_size_100k: Int32, wr: &mut Int32, value: UInt16) {
+    slice::from_raw_parts_mut(mtfv, block_capacity(block_size_100k).unwrap() * 2)
+        [usize::try_from(*wr).unwrap()] = value;
     *wr += 1;
 }
 
@@ -401,7 +397,13 @@ unsafe fn makeMaps_e(s: &mut EState) {
     }
 }
 
-unsafe fn emit_zero_run(s: &mut EState, mtfv: &mut [UInt16], wr: &mut Int32, z_pend: &mut Int32) {
+unsafe fn emit_zero_run(
+    s: &mut EState,
+    mtfv: *mut UInt16,
+    block_size_100k: Int32,
+    wr: &mut Int32,
+    z_pend: &mut Int32,
+) {
     if *z_pend <= 0 {
         return;
     }
@@ -409,10 +411,10 @@ unsafe fn emit_zero_run(s: &mut EState, mtfv: &mut [UInt16], wr: &mut Int32, z_p
     *z_pend -= 1;
     loop {
         if (*z_pend & 1) != 0 {
-            push_mtf_value(mtfv, wr, BZ_RUNB as UInt16);
+            push_mtf_value(mtfv, block_size_100k, wr, BZ_RUNB as UInt16);
             s.mtfFreq[BZ_RUNB as usize] += 1;
         } else {
-            push_mtf_value(mtfv, wr, BZ_RUNA as UInt16);
+            push_mtf_value(mtfv, block_size_100k, wr, BZ_RUNA as UInt16);
             s.mtfFreq[BZ_RUNA as usize] += 1;
         }
         if *z_pend < 2 {
@@ -425,9 +427,7 @@ unsafe fn emit_zero_run(s: &mut EState, mtfv: &mut [UInt16], wr: &mut Int32, z_p
 
 unsafe fn generateMTFValues(s: &mut EState) {
     let mut yy = [0u8; 256];
-    let ptr = ptr_storage(s.ptr, s.blockSize100k);
     let block = block_storage(s.block, s.blockSize100k);
-    let mtfv = mtfv_storage_mut(s.mtfv, s.blockSize100k);
 
     makeMaps_e(s);
     let eob = s.nInUse + 1;
@@ -442,7 +442,7 @@ unsafe fn generateMTFValues(s: &mut EState) {
     }
 
     for i in 0..usize::try_from(s.nblock).unwrap() {
-        let mut j = ptr[i] as Int32 - 1;
+        let mut j = ptr_value(s.ptr, s.blockSize100k, i) as Int32 - 1;
         if j < 0 {
             j += s.nblock;
         }
@@ -451,7 +451,7 @@ unsafe fn generateMTFValues(s: &mut EState) {
         if yy[0] == ll_i {
             z_pend += 1;
         } else {
-            emit_zero_run(s, mtfv, &mut wr, &mut z_pend);
+            emit_zero_run(s, s.mtfv, s.blockSize100k, &mut wr, &mut z_pend);
 
             let mut rtmp = yy[1];
             yy[1] = yy[0];
@@ -463,13 +463,18 @@ unsafe fn generateMTFValues(s: &mut EState) {
                 yy[pos] = rtmp2;
             }
             yy[0] = rtmp;
-            push_mtf_value(mtfv, &mut wr, (pos as Int32 + 1) as UInt16);
+            push_mtf_value(
+                s.mtfv,
+                s.blockSize100k,
+                &mut wr,
+                (pos as Int32 + 1) as UInt16,
+            );
             s.mtfFreq[pos + 1] += 1;
         }
     }
 
-    emit_zero_run(s, mtfv, &mut wr, &mut z_pend);
-    push_mtf_value(mtfv, &mut wr, eob as UInt16);
+    emit_zero_run(s, s.mtfv, s.blockSize100k, &mut wr, &mut z_pend);
+    push_mtf_value(s.mtfv, s.blockSize100k, &mut wr, eob as UInt16);
     s.mtfFreq[eob as usize] += 1;
     s.nMTF = wr;
 }
