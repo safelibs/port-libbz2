@@ -18,6 +18,10 @@ require_tool() {
   command -v "$1" >/dev/null 2>&1 || die "missing required host tool: $1"
 }
 
+require_file() {
+  [[ -f "$1" ]] || die "missing required file: $1"
+}
+
 copy_stage_asset() {
   local source="$1"
   local dest="$2"
@@ -45,6 +49,32 @@ require_tool python3
 
 [[ -d "$ROOT/safe" ]] || die "missing safe/ source tree"
 [[ -d "$ROOT/original" ]] || die "missing original/ source tree"
+
+for required in \
+  "$ROOT/safe/Cargo.toml" \
+  "$ROOT/safe/Cargo.lock" \
+  "$ROOT/safe/build.rs" \
+  "$ROOT/safe/include/bzlib.h" \
+  "$ROOT/safe/debian/changelog" \
+  "$ROOT/safe/debian/control" \
+  "$ROOT/safe/debian/rules" \
+  "$ROOT/safe/debian/clean" \
+  "$ROOT/safe/debian/copyright" \
+  "$ROOT/safe/debian/not-installed" \
+  "$ROOT/safe/debian/bzip2.install" \
+  "$ROOT/safe/debian/bzip2.links" \
+  "$ROOT/safe/debian/bzip2.manpages" \
+  "$ROOT/safe/debian/bzip2-doc.doc-base" \
+  "$ROOT/safe/debian/bzip2-doc.docs" \
+  "$ROOT/safe/debian/bzip2-doc.info" \
+  "$ROOT/safe/debian/libbz2-1.0.install" \
+  "$ROOT/safe/debian/libbz2-1.0.shlibs" \
+  "$ROOT/safe/debian/libbz2-dev.install" \
+  "$ROOT/safe/debian/source/format" \
+  "$ROOT/safe/debian/source/options"
+do
+  require_file "$required"
+done
 
 rm -rf "$PACKAGE_ROOT"
 mkdir -p "$SRC" "$OUT" "$UNPACKED"

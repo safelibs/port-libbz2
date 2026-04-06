@@ -21,6 +21,7 @@ pub const BZ_CONFIG_ERROR: c_int = -9;
 
 pub const BZ_MAX_UNUSED: c_int = 5000;
 
+// BZ2_bzlibVersion must keep returning the upstream version string.
 pub const BZ_VERSION_BYTES: &[u8] = b"1.0.8, 13-Jul-2019\0";
 
 pub const BZ_MAX_ALPHA_SIZE: usize = 258;

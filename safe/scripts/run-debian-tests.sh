@@ -51,6 +51,10 @@ done
 [[ -f "$MANIFEST" ]] || die "missing package manifest: $MANIFEST; run bash safe/scripts/build-debs.sh first"
 [[ -f "$SRC/debian/control" ]] || die "missing staged Debian control file: $SRC/debian/control"
 [[ -f "$SRC/debian/tests/control" ]] || die "missing staged autopkgtest control file: $SRC/debian/tests/control"
+[[ "$(lookup_manifest_value "source_dir")" == "target/package/src" ]] || {
+  die "package manifest points at an unexpected source_dir; expected target/package/src"
+}
+[[ -n "$(lookup_manifest_value "version")" ]] || die "package manifest is missing a version entry"
 
 for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
   deb_name="$(lookup_manifest_value "package:$pkg")"

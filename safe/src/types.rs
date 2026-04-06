@@ -17,6 +17,8 @@ pub type bz_alloc_func = Option<unsafe extern "C" fn(*mut c_void, c_int, c_int) 
 pub type bz_free_func = Option<unsafe extern "C" fn(*mut c_void, *mut c_void)>;
 
 #[repr(C)]
+// This layout must stay byte-for-byte compatible with original/bzlib.h because
+// target/original-baseline/*.o gets relinked against the staged safe library.
 pub struct bz_stream {
     pub next_in: *mut c_char,
     pub avail_in: c_uint,
@@ -33,6 +35,7 @@ pub struct bz_stream {
 }
 
 #[repr(C)]
+// The opaque compression state is ABI-visible through bz_stream.state.
 pub struct EState {
     pub strm: *mut bz_stream,
     pub mode: Int32,
@@ -77,6 +80,7 @@ pub struct EState {
 }
 
 #[repr(C)]
+// The opaque decompression state is ABI-visible through bz_stream.state.
 pub struct DState {
     pub strm: *mut bz_stream,
     pub state: Int32,

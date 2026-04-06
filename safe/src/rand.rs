@@ -1,6 +1,7 @@
 use crate::types::Int32;
 
 #[no_mangle]
+// Exported ABI data symbol; later relink checks depend on the exact 512 entries.
 pub static mut BZ2_rNums: [Int32; 512] = [
     619, 720, 127, 481, 931, 816, 813, 233, 566, 247, 985, 724, 205, 454, 863, 491, 741, 242, 949,
     214, 733, 859, 335, 708, 621, 574, 73, 654, 730, 472, 419, 436, 278, 496, 867, 210, 399, 680,

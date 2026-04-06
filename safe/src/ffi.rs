@@ -57,6 +57,7 @@ pub(crate) fn bzerror_message_ptr(code: c_int) -> *const c_char {
 
 #[no_mangle]
 pub extern "C" fn BZ2_bzlibVersion() -> *const c_char {
+    // Match the upstream public API string exactly; package and ABI checks use it.
     BZ_VERSION_BYTES.as_ptr().cast()
 }
 

@@ -4,6 +4,46 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ORIGINAL="$ROOT/original"
 BASELINE="$ROOT/target/original-baseline"
+DLLTEST_FLAGS=(
+  -D_FILE_OFFSET_BITS=64
+  -Wall
+  -Winline
+  -O2
+  -g
+)
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_tool() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required host tool: $1"
+}
+
+require_file() {
+  [[ -f "$1" ]] || die "missing required file: $1"
+}
+
+require_dir() {
+  [[ -d "$1" ]] || die "missing required directory: $1"
+}
+
+require_dir "$ORIGINAL"
+for required in \
+  "$ORIGINAL/Makefile" \
+  "$ORIGINAL/bzlib.h" \
+  "$ORIGINAL/libbz2.def" \
+  "$ORIGINAL/public_api_test.c" \
+  "$ORIGINAL/dlltest.c" \
+  "$ORIGINAL/bzip2.c"
+do
+  require_file "$required"
+done
+
+cc_bin="${CC:-gcc}"
+require_tool "$cc_bin"
+require_tool make
 
 mkdir -p \
   "$ROOT/target/original-baseline" \
@@ -13,40 +53,29 @@ mkdir -p \
   "$ROOT/target/bench" \
   "$ROOT/target/security"
 
-need_original_build=0
-for artifact in \
-  libbz2.so \
-  libbz2.so.1.0 \
-  libbz2.so.1.0.4 \
-  public_api_test \
-  public_api_test.o \
-  bzip2 \
-  bzip2.o
-do
-  if [[ ! -e "$ORIGINAL/$artifact" ]]; then
-    need_original_build=1
-    break
-  fi
-done
+rm -rf "$BASELINE"
+mkdir -p "$BASELINE"
 
-if (( need_original_build )); then
-  make -C "$ORIGINAL" libbz2.so public_api_test bzip2
-fi
+make -C "$ORIGINAL" CC="$cc_bin" libbz2.so public_api_test bzip2
 
-if [[ ! -e "$ORIGINAL/dlltest" ]]; then
-  gcc \
-    -D_FILE_OFFSET_BITS=64 \
-    -Wall -Winline -O2 -g \
-    -o "$ORIGINAL/dlltest" \
-    "$ORIGINAL/dlltest.c" \
-    -L"$ORIGINAL" \
-    -lbz2
-fi
+"$cc_bin" \
+  "${DLLTEST_FLAGS[@]}" \
+  -I"$ORIGINAL" \
+  -o "$BASELINE/dlltest.o" \
+  -c "$ORIGINAL/dlltest.c"
+
+"$cc_bin" \
+  "${DLLTEST_FLAGS[@]}" \
+  -I"$ORIGINAL" \
+  -o "$ORIGINAL/dlltest" \
+  "$ORIGINAL/dlltest.c" \
+  -L"$ORIGINAL" \
+  -lbz2
 
 run_original_dlltest() {
   (
     cd "$ORIGINAL"
-    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest "$@"
+    env LD_LIBRARY_PATH="$ORIGINAL${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ./dlltest "$@"
   )
 }
 
@@ -61,17 +90,19 @@ fi
 if [[ ! -e "$ORIGINAL/dlltest-stdio.bz2" ]]; then
   (
     cd "$ORIGINAL"
-    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest -1 < sample1.ref > dlltest-stdio.bz2
+    env LD_LIBRARY_PATH="$ORIGINAL${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ./dlltest -1 < sample1.ref > dlltest-stdio.bz2
   )
 fi
 
 if [[ ! -e "$ORIGINAL/dlltest-stdio.out" ]]; then
   (
     cd "$ORIGINAL"
-    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest -d < dlltest-stdio.bz2 > dlltest-stdio.out
+    env LD_LIBRARY_PATH="$ORIGINAL${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" ./dlltest -d < dlltest-stdio.bz2 > dlltest-stdio.out
   )
 fi
 
+# Preserve the exact upstream-built objects in target/original-baseline so
+# staged relink checks do not quietly fall back to recompiling wrappers.
 for artifact in \
   libbz2.so \
   libbz2.so.1.0 \
@@ -86,6 +117,6 @@ for artifact in \
   dlltest-stdio.bz2 \
   dlltest-stdio.out
 do
-  rm -rf "$BASELINE/$artifact"
+  require_file "$ORIGINAL/$artifact"
   cp -a "$ORIGINAL/$artifact" "$BASELINE/$artifact"
 done

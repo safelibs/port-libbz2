@@ -2,6 +2,8 @@
 #![allow(non_snake_case)]
 #![allow(non_upper_case_globals)]
 
+// Keep this module graph aligned with the upstream C ABI surface that
+// safe/build.rs and safe/abi/* stage and verify.
 pub mod alloc;
 pub mod blocksort;
 pub mod compress;
