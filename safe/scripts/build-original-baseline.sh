@@ -43,24 +43,33 @@ if [[ ! -e "$ORIGINAL/dlltest" ]]; then
     -lbz2
 fi
 
+run_original_dlltest() {
+  (
+    cd "$ORIGINAL"
+    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest "$@"
+  )
+}
+
 if [[ ! -e "$ORIGINAL/dlltest-path.bz2" ]]; then
-  LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" \
-    "$ORIGINAL/dlltest" "$ORIGINAL/sample1.ref" "$ORIGINAL/dlltest-path.bz2"
+  run_original_dlltest sample1.ref dlltest-path.bz2
 fi
 
 if [[ ! -e "$ORIGINAL/dlltest-path.out" ]]; then
-  LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" \
-    "$ORIGINAL/dlltest" -d "$ORIGINAL/dlltest-path.bz2" "$ORIGINAL/dlltest-path.out"
+  run_original_dlltest -d dlltest-path.bz2 dlltest-path.out
 fi
 
 if [[ ! -e "$ORIGINAL/dlltest-stdio.bz2" ]]; then
-  LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" \
-    "$ORIGINAL/dlltest" -1 < "$ORIGINAL/sample1.ref" > "$ORIGINAL/dlltest-stdio.bz2"
+  (
+    cd "$ORIGINAL"
+    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest -1 < sample1.ref > dlltest-stdio.bz2
+  )
 fi
 
 if [[ ! -e "$ORIGINAL/dlltest-stdio.out" ]]; then
-  LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" \
-    "$ORIGINAL/dlltest" -d < "$ORIGINAL/dlltest-stdio.bz2" > "$ORIGINAL/dlltest-stdio.out"
+  (
+    cd "$ORIGINAL"
+    env LD_LIBRARY_PATH="$ORIGINAL:${LD_LIBRARY_PATH:-}" ./dlltest -d < dlltest-stdio.bz2 > dlltest-stdio.out
+  )
 fi
 
 for artifact in \
