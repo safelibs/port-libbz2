@@ -199,7 +199,7 @@ DOCKERFILE
 tests_string="$resolved_tests"
 deb_paths_string="${package_paths[*]}"
 
-docker run --rm \
+docker run --rm -i \
   -e "LIBBZ2_AUTOPKGTESTS=$tests_string" \
   -e "LIBBZ2_APT_DEPS=$apt_deps" \
   -e "LIBBZ2_NEEDS_PACKAGES=$needs_packages" \
