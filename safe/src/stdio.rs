@@ -78,7 +78,7 @@ unsafe fn parse_open_mode(mode: *const c_char) -> Option<(bool, c_int, bool)> {
             b'r' => writing = false,
             b'w' => writing = true,
             b's' => small_mode = true,
-            b'1'..=b'9' => block_size_100k = c_int::from(byte - b'0'),
+            b'0'..=b'9' => block_size_100k = c_int::from(byte - b'0'),
             _ => {}
         }
     }
@@ -92,10 +92,13 @@ unsafe fn bzopen_or_bzdopen(
     mode: *const c_char,
     by_fd: bool,
 ) -> *mut c_void {
-    let (writing, block_size_100k, small_mode) = match parse_open_mode(mode) {
+    let (writing, mut block_size_100k, small_mode) = match parse_open_mode(mode) {
         Some(parsed) => parsed,
         None => return ptr::null_mut(),
     };
+    if writing {
+        block_size_100k = block_size_100k.clamp(1, 9);
+    }
 
     let mode2 = match CString::new(if writing { "wb" } else { "rb" }) {
         Ok(value) => value,

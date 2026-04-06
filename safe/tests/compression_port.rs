@@ -116,6 +116,34 @@ fn temp_path(label: &str) -> PathBuf {
     ))
 }
 
+fn write_via_bzopen(payload: &[u8], mode: &str) -> Vec<u8> {
+    let wrapper_path = temp_path("bzopen");
+    let wrapper_path_c = CString::new(wrapper_path.to_string_lossy().as_bytes()).unwrap();
+    let mode = CString::new(mode).unwrap();
+    let handle = unsafe { BZ2_bzopen(wrapper_path_c.as_ptr(), mode.as_ptr()) };
+    assert!(!handle.is_null());
+
+    let mut offset = 0usize;
+    while offset < payload.len() {
+        let chunk = (payload.len() - offset).min(701);
+        let written = unsafe {
+            BZ2_bzwrite(
+                handle,
+                payload.as_ptr().add(offset).cast_mut().cast(),
+                chunk as c_int,
+            )
+        };
+        assert_eq!(written, chunk as c_int);
+        offset += chunk;
+    }
+    assert_eq!(unsafe { BZ2_bzflush(handle) }, 0);
+    unsafe { BZ2_bzclose(handle) };
+
+    let wrapped = fs::read(&wrapper_path).unwrap();
+    fs::remove_file(&wrapper_path).unwrap();
+    wrapped
+}
+
 #[test]
 fn stream_and_buffer_compress_roundtrip_generated_payload() {
     let mut payload = vec![0u8; 180_000];
@@ -198,29 +226,19 @@ fn write_side_stdio_and_wrapper_paths_roundtrip_generated_payload() {
     assert_eq!(decompress_all(&compressed, payload.len()), payload);
     fs::remove_file(&direct_path).unwrap();
 
-    let wrapper_path = temp_path("bzopen");
-    let wrapper_path_c = CString::new(wrapper_path.to_string_lossy().as_bytes()).unwrap();
-    let mode = CString::new("w7").unwrap();
-    let handle = unsafe { BZ2_bzopen(wrapper_path_c.as_ptr(), mode.as_ptr()) };
-    assert!(!handle.is_null());
-
-    let mut offset = 0usize;
-    while offset < payload.len() {
-        let chunk = (payload.len() - offset).min(701);
-        let written = unsafe {
-            BZ2_bzwrite(
-                handle,
-                payload.as_ptr().add(offset).cast_mut().cast(),
-                chunk as c_int,
-            )
-        };
-        assert_eq!(written, chunk as c_int);
-        offset += chunk;
-    }
-    assert_eq!(unsafe { BZ2_bzflush(handle) }, 0);
-    unsafe { BZ2_bzclose(handle) };
-
-    let wrapped = fs::read(&wrapper_path).unwrap();
+    let wrapped = write_via_bzopen(&payload, "w7");
     assert_eq!(decompress_all(&wrapped, payload.len()), payload);
-    fs::remove_file(&wrapper_path).unwrap();
+}
+
+#[test]
+fn bzopen_write_mode_zero_clamps_to_block_size_one() {
+    let mut payload = vec![0u8; 32_000];
+    fill_payload(&mut payload, 11);
+
+    let clamped = write_via_bzopen(&payload, "w0");
+    let explicit = write_via_bzopen(&payload, "w1");
+
+    assert_eq!(&clamped[..4], b"BZh1");
+    assert_eq!(clamped, explicit);
+    assert_eq!(decompress_all(&clamped, payload.len()), payload);
 }
