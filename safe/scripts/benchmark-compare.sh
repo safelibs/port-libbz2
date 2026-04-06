@@ -302,10 +302,7 @@ rm -rf "$WORK" "$TMP"
 
 if [[ "${LIBBZ2_BENCH_CAPTURE_SECURITY_LOG:-1}" != 0 ]]; then
   mkdir -p "$ROOT/target/security"
-  {
-    printf '+ bash %s\n' "$ROOT/safe/scripts/benchmark-compare.sh"
-    cat "$OUT/summary.txt"
-  } > "$ROOT/target/security/10-benchmark.log"
+  cp "$OUT/summary.txt" "$ROOT/target/security/10-benchmark.log"
 fi
 
 cat "$OUT/summary.txt"
