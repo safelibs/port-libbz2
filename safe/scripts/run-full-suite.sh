@@ -34,6 +34,8 @@ run_step 10-benchmark env LIBBZ2_BENCH_CAPTURE_SECURITY_LOG=0 bash "$ROOT/safe/s
 
 {
   printf 'release_gate=impl_06_final_hardening_and_release_gate\n'
+  printf 'git_head=%s\n' "$(git -C "$ROOT" rev-parse HEAD)"
+  printf 'generated_at_utc=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   printf 'log_root=target/security\n'
   printf 'benchmark_summary=target/bench/summary.txt\n'
   for log in "$LOG_ROOT"/*.log; do
