@@ -94,10 +94,50 @@ fn release_gate_keeps_runtime_and_compile_compatibility_split_explicit() {
         "bash \"$ROOT/safe/scripts/run-debian-tests.sh\" --tests link-with-shared bigfile bzexe-test compare compress grep",
         "safe/scripts/run-full-suite.sh",
     );
+    assert_contains(
+        &full_suite,
+        "run_step 05-dlltest-object-release-gate run_direct_dlltest_object_gate",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "\"$ROOT/target/original-baseline/dlltest.o\"",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "\"$dlltest_exe\" -d \"$path_bz2_rel\" \"$tmpdir_rel/path.out\"",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "\"$dlltest_exe\" -d < \"$stdio_bz2_rel\" > \"$tmpdir_rel/stdio.out\"",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "\"$dlltest_exe\" \"$path_out_rel\" \"$tmpdir_rel/path.bz2\"",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "\"$dlltest_exe\" -1 < \"$stdio_out_rel\" > \"$tmpdir_rel/stdio.bz2\"",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert_contains(
+        &full_suite,
+        "run_step 10-test-original-all \"$ROOT/test-original.sh\"",
+        "safe/scripts/run-full-suite.sh",
+    );
     for dependent in EXPECTED_REPRESENTATIVE_DOWNSTREAMS {
         let needle = format!("\"$ROOT/test-original.sh\" --only {dependent}");
         assert_contains(&full_suite, &needle, "safe/scripts/run-full-suite.sh");
     }
+    assert_eq!(
+        full_suite.matches("\"$ROOT/test-original.sh\"").count(),
+        EXPECTED_REPRESENTATIVE_DOWNSTREAMS.len() + 1,
+        "safe/scripts/run-full-suite.sh should keep one full downstream matrix plus four representative downstream --only checks",
+    );
     assert_eq!(
         full_suite.matches("\"$ROOT/test-original.sh\" --only ").count(),
         EXPECTED_REPRESENTATIVE_DOWNSTREAMS.len(),

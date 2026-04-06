@@ -1,5 +1,11 @@
 # Unsafe Audit
 
+Release-gate refresh for `impl_06_final_hardening_and_release_gate` on 2026-04-06:
+
+- revalidated the current tree with `rg -n '\bunsafe\b' safe/src safe/tests`
+- reran the full release gate, including the direct `dlltest.o` relink-and-execute step, Debian autopkgtests, and the full downstream matrix
+- confirmed that no new `unsafe` buckets were introduced in this final hardening pass
+
 This phase keeps `unsafe` in four buckets only:
 
 1. C ABI boundary
