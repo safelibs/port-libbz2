@@ -126,6 +126,15 @@ fn release_gate_keeps_runtime_and_compile_compatibility_split_explicit() {
     );
     assert_contains(
         &full_suite,
+        "); then\n    status=0\n  else\n    status=$?\n  fi",
+        "safe/scripts/run-full-suite.sh",
+    );
+    assert!(
+        !full_suite.contains("if ! ("),
+        "safe/scripts/run-full-suite.sh must not use `if ! (...)` around the direct dlltest.o gate because it masks the failing subshell status"
+    );
+    assert_contains(
+        &full_suite,
         "run_step 10-test-original-all \"$ROOT/test-original.sh\"",
         "safe/scripts/run-full-suite.sh",
     );

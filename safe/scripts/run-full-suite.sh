@@ -74,7 +74,7 @@ run_direct_dlltest_object_gate() {
     -Wl,-rpath,'$ORIGIN' \
     "$ROOT/target/compat/libbz2.so.1.0.4"
 
-  if ! (
+  if (
     cd "$ROOT"
     env LD_LIBRARY_PATH="$COMPAT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
       "$dlltest_exe" -d "$path_bz2_rel" "$tmpdir_rel/path.out"
@@ -92,6 +92,8 @@ run_direct_dlltest_object_gate() {
       "$dlltest_exe" -1 < "$stdio_out_rel" > "$tmpdir_rel/stdio.bz2"
     cmp "$tmpdir_rel/stdio.bz2" "$stdio_bz2_rel"
   ); then
+    status=0
+  else
     status=$?
   fi
 
