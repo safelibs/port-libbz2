@@ -1,4 +1,6 @@
-use crate::constants::{BZ_MAX_ALPHA_SIZE, BZ_MAX_SELECTORS, BZ_N_GROUPS, MTFA_SIZE, MTFL_SIZE};
+use crate::constants::{
+    BZ_MAX_ALPHA_SIZE, BZ_MAX_SELECTORS, BZ_MAX_UNUSED, BZ_N_GROUPS, MTFA_SIZE, MTFL_SIZE,
+};
 use core::ffi::c_void;
 use std::os::raw::{c_char, c_int, c_short, c_uchar, c_uint, c_ushort};
 
@@ -145,11 +147,11 @@ pub struct DState {
 
 #[repr(C)]
 pub struct BzFileState {
-    pub mode: c_int,
-    pub last_err: c_int,
-    pub file: *mut CFile,
-    pub small: c_int,
-    pub verbosity: c_int,
-    pub block_size_100k: c_int,
-    pub work_factor: c_int,
+    pub handle: *mut CFile,
+    pub buf: [Char; BZ_MAX_UNUSED as usize],
+    pub bufN: Int32,
+    pub writing: Bool,
+    pub strm: bz_stream,
+    pub lastErr: Int32,
+    pub initialisedOk: Bool,
 }

@@ -30,3 +30,30 @@ pub static mut BZ2_rNums: [Int32; 512] = [
     210, 389, 550, 919, 135, 780, 773, 635, 389, 707, 100, 626, 958, 165, 504, 920, 176, 193, 713,
     857, 265, 203, 50, 668, 108, 645, 990, 626, 197, 510, 357, 358, 850, 858, 364, 936, 638,
 ];
+
+#[inline]
+pub fn rand_init(r_n_to_go: &mut Int32, r_t_pos: &mut Int32) {
+    *r_n_to_go = 0;
+    *r_t_pos = 0;
+}
+
+#[inline]
+pub fn rand_mask(r_n_to_go: Int32) -> u8 {
+    if r_n_to_go == 1 {
+        1
+    } else {
+        0
+    }
+}
+
+#[inline]
+pub fn rand_update_mask(r_n_to_go: &mut Int32, r_t_pos: &mut Int32) {
+    if *r_n_to_go == 0 {
+        *r_n_to_go = unsafe { BZ2_rNums[*r_t_pos as usize] };
+        *r_t_pos += 1;
+        if *r_t_pos == 512 {
+            *r_t_pos = 0;
+        }
+    }
+    *r_n_to_go -= 1;
+}

@@ -8,6 +8,7 @@ pub mod constants;
 pub mod crc;
 pub mod decompress;
 pub mod ffi;
+pub mod huffman;
 pub mod rand;
 pub mod stdio;
 pub mod types;

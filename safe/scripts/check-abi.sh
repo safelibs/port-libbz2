@@ -12,6 +12,8 @@ while (($# > 0)); do
   case "$1" in
     --baseline-only)
       ;;
+    --strict-exports)
+      ;;
     *)
       echo "unknown option: $1" >&2
       exit 1

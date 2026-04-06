@@ -3,6 +3,9 @@ use crate::constants::{
     BZ_OK, BZ_OUTBUFF_FULL, BZ_PARAM_ERROR, BZ_RUN_OK, BZ_SEQUENCE_ERROR, BZ_STREAM_END,
     BZ_UNEXPECTED_EOF, BZ_VERSION_BYTES,
 };
+use crate::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
+use crate::types::bz_stream;
+use core::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_uint};
 use std::process;
 
@@ -67,17 +70,50 @@ pub unsafe extern "C" fn BZ2_bzBuffToBuffCompress(
 
 #[no_mangle]
 pub unsafe extern "C" fn BZ2_bzBuffToBuffDecompress(
-    _dest: *mut c_char,
+    dest: *mut c_char,
     destLen: *mut c_uint,
-    _source: *mut c_char,
-    _sourceLen: c_uint,
-    _small: c_int,
-    _verbosity: c_int,
+    source: *mut c_char,
+    sourceLen: c_uint,
+    small: c_int,
+    verbosity: c_int,
 ) -> c_int {
-    if !destLen.is_null() {
-        *destLen = 0;
+    if dest.is_null()
+        || destLen.is_null()
+        || source.is_null()
+        || (small != 0 && small != 1)
+        || !(0..=4).contains(&verbosity)
+    {
+        return BZ_PARAM_ERROR;
     }
-    BZ_CONFIG_ERROR
+
+    let mut strm: bz_stream = MaybeUninit::zeroed().assume_init();
+    let requested_len = *destLen;
+    let ret = BZ2_bzDecompressInit(&mut strm, verbosity, small);
+    if ret != BZ_OK {
+        return ret;
+    }
+
+    strm.next_in = source;
+    strm.next_out = dest;
+    strm.avail_in = sourceLen;
+    strm.avail_out = requested_len;
+
+    let ret = BZ2_bzDecompress(&mut strm);
+    if ret == BZ_STREAM_END {
+        *destLen = requested_len - strm.avail_out;
+        let _ = BZ2_bzDecompressEnd(&mut strm);
+        BZ_OK
+    } else if ret == BZ_OK {
+        let _ = BZ2_bzDecompressEnd(&mut strm);
+        if strm.avail_out > 0 {
+            BZ_UNEXPECTED_EOF
+        } else {
+            BZ_OUTBUFF_FULL
+        }
+    } else {
+        let _ = BZ2_bzDecompressEnd(&mut strm);
+        ret
+    }
 }
 
 #[no_mangle]
