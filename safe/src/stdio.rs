@@ -55,8 +55,12 @@ unsafe fn set_bzerror(bzerror: *mut c_int, bzf: *mut BzFileState, code: c_int) {
 unsafe fn make_handle(handle: *mut CFile, writing: bool) -> *mut c_void {
     let mut state = zeroed_bzfile();
     state.handle = handle;
+    state.bufN = 0;
     state.writing = if writing { 1 } else { 0 };
     state.lastErr = BZ_OK;
+    state.strm.bzalloc = None;
+    state.strm.bzfree = None;
+    state.strm.opaque = ptr::null_mut();
     Box::into_raw(state).cast()
 }
 

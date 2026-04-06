@@ -202,6 +202,14 @@ fn ll4_capacity(block_capacity: usize) -> Option<usize> {
     block_capacity.checked_add(1).map(|n| n >> 1)
 }
 
+fn decoded_block_len(s: &DState) -> Result<usize, c_int> {
+    let nblock = s.cftab[256];
+    if nblock < 0 {
+        return Err(BZ_DATA_ERROR);
+    }
+    usize::try_from(nblock).map_err(|_| BZ_DATA_ERROR)
+}
+
 unsafe fn release_block_storage(state: *mut DState) {
     let s = &mut *state;
     if block_capacity(s.blockSize100k).is_some() {
@@ -308,7 +316,9 @@ unsafe fn get_ll(s: &mut DState, index: usize) -> Result<UInt32, c_int> {
 }
 
 unsafe fn get_fast_value(s: &mut DState) -> Result<u8, c_int> {
-    let len = block_capacity(s.blockSize100k).ok_or(BZ_DATA_ERROR)?;
+    // Harden the output side against impossible T positions by bounding them to
+    // the decoded block length, not merely the allocation size.
+    let len = decoded_block_len(s)?;
     let t_pos = usize::try_from(s.tPos).map_err(|_| BZ_DATA_ERROR)?;
     if t_pos >= len {
         return Err(BZ_DATA_ERROR);
@@ -320,7 +330,10 @@ unsafe fn get_fast_value(s: &mut DState) -> Result<u8, c_int> {
 }
 
 unsafe fn get_small_value(s: &mut DState) -> Result<u8, c_int> {
-    let len = block_capacity(s.blockSize100k).ok_or(BZ_DATA_ERROR)?;
+    // Keep the small-mode BWT walk inside the decoded block so malformed
+    // streams terminate as explicit data errors instead of wandering zeroed
+    // backing storage.
+    let len = decoded_block_len(s)?;
     let t_pos = usize::try_from(s.tPos).map_err(|_| BZ_DATA_ERROR)?;
     if t_pos >= len {
         return Err(BZ_DATA_ERROR);

@@ -27,6 +27,10 @@ const SAMPLE3_BZ2: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../original/sample3.bz2"
 ));
+const SAMPLE3_RANDOMIZED_BZ2: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/sample3.randomized.bz2"
+));
 const SAMPLE3_REF: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../original/sample3.ref"
@@ -126,11 +130,12 @@ fn overwrite_bits_msb_first(buffer: &mut [u8], start_bit: usize, width: usize, v
     }
 }
 
-fn sample_fixtures() -> [(&'static str, &'static [u8], &'static [u8]); 3] {
+fn sample_fixtures() -> [(&'static str, &'static [u8], &'static [u8]); 4] {
     [
         ("sample1", SAMPLE1_BZ2, SAMPLE1_REF),
         ("sample2", SAMPLE2_BZ2, SAMPLE2_REF),
         ("sample3", SAMPLE3_BZ2, SAMPLE3_REF),
+        ("sample3-randomized", SAMPLE3_RANDOMIZED_BZ2, SAMPLE3_REF),
     ]
 }
 

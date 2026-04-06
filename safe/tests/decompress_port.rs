@@ -1,12 +1,13 @@
 use bz2::bz_stream;
-use bz2::constants::{BZ_OK, BZ_OUTBUFF_FULL, BZ_STREAM_END};
+use bz2::constants::{BZ_OK, BZ_OUTBUFF_FULL, BZ_SEQUENCE_ERROR, BZ_STREAM_END, BZ_UNEXPECTED_EOF};
 use bz2::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
 use bz2::ffi::BZ2_bzBuffToBuffDecompress;
 use bz2::stdio::{
     BZ2_bzRead, BZ2_bzReadClose, BZ2_bzReadGetUnused, BZ2_bzReadOpen, BZ2_bzclose, BZ2_bzdopen,
-    BZ2_bzopen, BZ2_bzread,
+    BZ2_bzerror, BZ2_bzopen, BZ2_bzread,
 };
 use bz2::types::CFile;
+use std::ffi::CStr;
 use std::ffi::{c_void, CString};
 use std::fs::{self, File};
 use std::mem::MaybeUninit;
@@ -118,6 +119,12 @@ fn temp_path(label: &str) -> PathBuf {
         "libbz2-safe-{label}-{stamp}-{}",
         std::process::id()
     ))
+}
+
+fn bzerror_state(handle: *mut c_void) -> (c_int, String) {
+    let mut err = i32::MIN;
+    let msg = unsafe { CStr::from_ptr(BZ2_bzerror(handle, &mut err)) };
+    (err, msg.to_str().unwrap().to_owned())
 }
 
 fn read_all_via_bzopen(path: &Path, mode: &str) -> Vec<u8> {
@@ -315,4 +322,105 @@ fn bzopen_and_bzdopen_read_wrappers_decompress_samples() {
 
     fs::remove_file(bzopen_path).unwrap();
     fs::remove_file(bzdopen_path).unwrap();
+}
+
+#[test]
+fn bzread_and_bzerror_preserve_read_side_wrapper_semantics() {
+    let ok_path = temp_path("bzread-ok");
+    let truncated_path = temp_path("bzread-truncated");
+    fs::write(&ok_path, SAMPLE3_RANDOMIZED_BZ2).unwrap();
+    fs::write(&truncated_path, &SAMPLE3_BZ2[..SAMPLE3_BZ2.len() - 1]).unwrap();
+
+    let ok_path_c = CString::new(ok_path.as_os_str().to_string_lossy().into_owned()).unwrap();
+    let truncated_path_c =
+        CString::new(truncated_path.as_os_str().to_string_lossy().into_owned()).unwrap();
+    let read_mode = CString::new("rs").unwrap();
+
+    let ok_handle = unsafe { BZ2_bzopen(ok_path_c.as_ptr(), read_mode.as_ptr()) };
+    assert!(!ok_handle.is_null());
+    let mut ok_output = Vec::new();
+    let mut buf = [0u8; 211];
+    loop {
+        let n = unsafe {
+            BZ2_bzread(
+                ok_handle,
+                buf.as_mut_ptr().cast::<c_void>(),
+                buf.len() as c_int,
+            )
+        };
+        assert!(n >= 0, "unexpected bzread failure on valid stream");
+        if n == 0 {
+            break;
+        }
+        ok_output.extend_from_slice(&buf[..n as usize]);
+    }
+    assert_eq!(ok_output, SAMPLE3_REF);
+    assert_eq!(
+        unsafe {
+            BZ2_bzread(
+                ok_handle,
+                buf.as_mut_ptr().cast::<c_void>(),
+                buf.len() as c_int,
+            )
+        },
+        0
+    );
+    assert_eq!(bzerror_state(ok_handle), (BZ_OK, "OK".to_owned()));
+    unsafe { BZ2_bzclose(ok_handle) };
+
+    let truncated_handle = unsafe { BZ2_bzopen(truncated_path_c.as_ptr(), read_mode.as_ptr()) };
+    assert!(!truncated_handle.is_null());
+    loop {
+        let n = unsafe {
+            BZ2_bzread(
+                truncated_handle,
+                buf.as_mut_ptr().cast::<c_void>(),
+                buf.len() as c_int,
+            )
+        };
+        if n == -1 {
+            break;
+        }
+        assert!(
+            n >= 0,
+            "truncated stream produced unexpected read result {n}"
+        );
+    }
+    assert_eq!(
+        bzerror_state(truncated_handle),
+        (BZ_UNEXPECTED_EOF, "UNEXPECTED_EOF".to_owned())
+    );
+    unsafe { BZ2_bzclose(truncated_handle) };
+
+    fs::remove_file(ok_path).unwrap();
+    fs::remove_file(truncated_path).unwrap();
+}
+
+#[test]
+fn read_get_unused_requires_stream_end_before_exposing_trailer_bytes() {
+    let path = temp_path("read-unused-seq");
+    fs::write(&path, SAMPLE1_BZ2).unwrap();
+
+    let fd = File::open(&path).unwrap().into_raw_fd();
+    let mode_c = CString::new("rb").unwrap();
+    let file = unsafe { fdopen(fd, mode_c.as_ptr()) };
+    assert!(!file.is_null());
+
+    unsafe {
+        let mut bzerr = BZ_OK;
+        let handle = BZ2_bzReadOpen(&mut bzerr, file, 0, 0, ptr::null_mut(), 0);
+        assert_eq!(bzerr, BZ_OK);
+        assert!(!handle.is_null());
+
+        let mut unused_ptr = ptr::null_mut();
+        let mut unused_len = 0;
+        BZ2_bzReadGetUnused(&mut bzerr, handle, &mut unused_ptr, &mut unused_len);
+        assert_eq!(bzerr, BZ_SEQUENCE_ERROR);
+
+        BZ2_bzReadClose(&mut bzerr, handle);
+        assert_eq!(bzerr, BZ_OK);
+        assert_eq!(fclose(file), 0);
+    }
+
+    fs::remove_file(path).unwrap();
 }

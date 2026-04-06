@@ -32,6 +32,7 @@ fi
 
 test -f "$COMPAT/libbz2.so.1.0.4"
 test -f "$COMPAT/include/bzlib.h"
+test -f "$BASELINE/dlltest.o"
 test -f "$BASELINE/public_api_test.o"
 test -f "$BASELINE/bzip2.o"
 
@@ -133,6 +134,7 @@ run_dlltest_read_modes() {
   local path_bz2 path_out stdio_bz2 stdio_out tmpdir_rel
 
   compile_c_fixture "$COMPAT/dlltest-source" "$ROOT/original/dlltest.c"
+  link_object_fixture "$COMPAT/dlltest-object" "$BASELINE/dlltest.o"
   path_bz2="$(repo_relative "$DLLTEST_PATH_BZ2")"
   path_out="$(repo_relative "$DLLTEST_PATH_OUT")"
   stdio_bz2="$(repo_relative "$DLLTEST_STDIO_BZ2")"
@@ -146,6 +148,12 @@ run_dlltest_read_modes() {
 
     "$COMPAT/dlltest-source" -d < "$stdio_bz2" > "$tmpdir_rel/stdio.out"
     cmp "$tmpdir_rel/stdio.out" "$stdio_out"
+
+    "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
+    cmp "$tmpdir_rel/object-path.out" "$path_out"
+
+    "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
+    cmp "$tmpdir_rel/object-stdio.out" "$stdio_out"
   )
   rm -rf "$tmpdir"
 }
@@ -157,6 +165,7 @@ run_dlltest_all_modes() {
   local path_bz2 path_out stdio_bz2 stdio_out tmpdir_rel
 
   compile_c_fixture "$COMPAT/dlltest-source" "$ROOT/original/dlltest.c"
+  link_object_fixture "$COMPAT/dlltest-object" "$BASELINE/dlltest.o"
   path_bz2="$(repo_relative "$DLLTEST_PATH_BZ2")"
   path_out="$(repo_relative "$DLLTEST_PATH_OUT")"
   stdio_bz2="$(repo_relative "$DLLTEST_STDIO_BZ2")"
@@ -176,6 +185,18 @@ run_dlltest_all_modes() {
 
     "$COMPAT/dlltest-source" -1 < "$stdio_out" > "$tmpdir_rel/stdio.bz2"
     cmp "$tmpdir_rel/stdio.bz2" "$stdio_bz2"
+
+    "$COMPAT/dlltest-object" -d "$path_bz2" "$tmpdir_rel/object-path.out"
+    cmp "$tmpdir_rel/object-path.out" "$path_out"
+
+    "$COMPAT/dlltest-object" -d < "$stdio_bz2" > "$tmpdir_rel/object-stdio.out"
+    cmp "$tmpdir_rel/object-stdio.out" "$stdio_out"
+
+    "$COMPAT/dlltest-object" "$path_out" "$tmpdir_rel/object-path.bz2"
+    cmp "$tmpdir_rel/object-path.bz2" "$path_bz2"
+
+    "$COMPAT/dlltest-object" -1 < "$stdio_out" > "$tmpdir_rel/object-stdio.bz2"
+    cmp "$tmpdir_rel/object-stdio.bz2" "$stdio_bz2"
   )
   rm -rf "$tmpdir"
 }

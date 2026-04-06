@@ -6,6 +6,10 @@ const SAMPLE3_BZ2: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../original/sample3.bz2"
 ));
+const SAMPLE3_RANDOMIZED_BZ2: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/sample3.randomized.bz2"
+));
 const SAMPLE3_REF: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../original/sample3.ref"
@@ -69,4 +73,30 @@ fn malformed_headers_and_truncation_return_distinct_errors() {
 
     assert_eq!(helper_decompress_code(SAMPLE3_BZ2, 32, 0), BZ_OUTBUFF_FULL);
     assert_eq!(helper_decompress_code(SAMPLE3_BZ2, 32, 1), BZ_OUTBUFF_FULL);
+
+    assert_eq!(
+        helper_decompress_code(
+            &SAMPLE3_RANDOMIZED_BZ2[..SAMPLE3_RANDOMIZED_BZ2.len() - 1],
+            SAMPLE3_REF.len() * 2,
+            0
+        ),
+        BZ_UNEXPECTED_EOF
+    );
+    assert_eq!(
+        helper_decompress_code(
+            &SAMPLE3_RANDOMIZED_BZ2[..SAMPLE3_RANDOMIZED_BZ2.len() - 1],
+            SAMPLE3_REF.len() * 2,
+            1
+        ),
+        BZ_UNEXPECTED_EOF
+    );
+
+    assert_eq!(
+        helper_decompress_code(SAMPLE3_RANDOMIZED_BZ2, 32, 0),
+        BZ_OUTBUFF_FULL
+    );
+    assert_eq!(
+        helper_decompress_code(SAMPLE3_RANDOMIZED_BZ2, 32, 1),
+        BZ_OUTBUFF_FULL
+    );
 }

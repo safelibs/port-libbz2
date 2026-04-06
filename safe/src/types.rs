@@ -92,7 +92,8 @@ pub struct DState {
     pub bsBuff: UInt32,
     pub bsLive: Int32,
     pub blockSize100k: Int32,
-    // Later phases fill both the fast (`tt`) and small (`ll16`/`ll4`) decode paths.
+    // Both the fast (`tt`) and small (`ll16`/`ll4`) decode paths remain
+    // ABI-visible through this state layout.
     pub smallDecompress: Bool,
     pub currBlockNo: Int32,
     pub verbosity: Int32,
