@@ -2,7 +2,7 @@ use crate::constants::{BZ_N_OVERSHOOT, BZ_N_QSORT, BZ_N_RADIX};
 use crate::types::{Bool, EState, Int32, UChar, UInt16, UInt32};
 use std::slice;
 
-unsafe extern "C" {
+extern "C" {
     fn BZ2_bz__AssertH__fail(errcode: Int32);
 }
 

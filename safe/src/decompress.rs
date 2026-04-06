@@ -25,7 +25,7 @@ const MAX_RUN_ACCUMULATOR: Int32 = 2 * 1024 * 1024;
 const MAX_VERBOSITY: c_int = 4;
 const FIRST_MTF_GROUP_LABEL: DecodeState = DecodeState::Mtf1;
 
-unsafe extern "C" {
+extern "C" {
     fn malloc(size: usize) -> *mut core::ffi::c_void;
     fn free(ptr: *mut core::ffi::c_void);
 }

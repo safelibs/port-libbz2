@@ -24,7 +24,7 @@ const BZ_LESSER_ICOST: UChar = 0;
 const BZ_GREATER_ICOST: UChar = 15;
 const MAX_HUFFMAN_LEN: Int32 = 17;
 
-unsafe extern "C" {
+extern "C" {
     fn malloc(size: usize) -> *mut core::ffi::c_void;
     fn free(ptr: *mut core::ffi::c_void);
     fn BZ2_bz__AssertH__fail(errcode: c_int);

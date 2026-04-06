@@ -14,7 +14,7 @@ use std::ptr;
 
 const EOF_VALUE: c_int = -1;
 
-unsafe extern "C" {
+extern "C" {
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
     fn fflush(file: *mut CFile) -> c_int;
@@ -28,12 +28,12 @@ unsafe extern "C" {
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
-unsafe extern "C" {
+extern "C" {
     fn fopen64(path: *const c_char, mode: *const c_char) -> *mut CFile;
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
-unsafe extern "C" {
+extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
 }
 

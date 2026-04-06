@@ -1,8 +1,9 @@
-bzip2 (1.0.8+safe1-1) unstable; urgency=medium
+bzip2 (1.0.8-5.1build0.1+safelibs1) unstable; urgency=medium
 
-  * Create the deterministic Rust packaging skeleton.
-  * Reserve the target/original-baseline, target/compat, target/install,
-    target/package, target/bench, and target/security artifact roots.
-  * Build from safe/ via cargo --locked --offline.
+  * Build staged Debian packages from the safe Rust libbz2 implementation.
+  * Reuse the upstream CLI, documentation, and autopkgtest assets against the
+    installed safe packages.
+  * Refresh the package harness and downstream smoke tests to consume the
+    generated .deb artifacts under target/package/out.
 
  -- SafeLibs Automation <safelibs@example.invalid>  Thu, 01 Jan 1970 00:00:00 +0000

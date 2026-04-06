@@ -1,2 +1,2 @@
 # Replaced with a symbolic link conforming to policy in usr/lib.
-usr/lib/libbz2.so
+usr/lib/*/libbz2.so

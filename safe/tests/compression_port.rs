@@ -14,7 +14,7 @@ use std::os::raw::{c_char, c_int};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-unsafe extern "C" {
+extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
 }

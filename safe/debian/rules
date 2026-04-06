@@ -1,46 +1,54 @@
 #!/usr/bin/make -f
 
 include /usr/share/dpkg/architecture.mk
-include /usr/share/dpkg/buildflags.mk
+ifneq ($(DEB_HOST_GNU_TYPE),$(DEB_BUILD_GNU_TYPE))
+  CC := $(DEB_HOST_GNU_TYPE)-gcc
+else
+  CC := gcc
+endif
 
 export DEB_BUILD_MAINT_OPTIONS := hardening=+all
 export DEB_CFLAGS_MAINT_APPEND := -Wall -Winline
 export DEB_CPPFLAGS_MAINT_APPEND := -D_REENTRANT -D_FILE_OFFSET_BITS=64
+include /usr/share/dpkg/buildflags.mk
 
 export CARGO_HOME := $(CURDIR)/debian/cargo-home
-export CARGO_TARGET_DIR := $(CURDIR)/../target/package/cargo
-export SAFE_STAGE := $(CURDIR)/../target/install/root
-export DOC_STAGE := $(CURDIR)/../target/package/docs
+export CARGO_TARGET_DIR := $(CURDIR)/../cargo
+export SAFE_STAGE := $(CURDIR)/../install/root
 
 lib_pkg := libbz2-1.0
 dev_pkg := libbz2-dev
+cli_bindir := $(SAFE_STAGE)/usr/bin
+libdir := $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)
+includedir := $(SAFE_STAGE)/usr/include
 
 %:
 	dh $@
 
 .PHONY: override_dh_auto_build-arch
 override_dh_auto_build-arch:
-	mkdir -p \
-	  $(CARGO_HOME) \
-	  $(CARGO_TARGET_DIR) \
-	  $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH) \
-	  $(SAFE_STAGE)/usr/include
+	mkdir -p $(CARGO_HOME) $(cli_bindir) $(libdir) $(includedir)
 	cargo build --manifest-path Cargo.toml --release --locked --offline
-	install -m 0755 \
-	  $(CARGO_TARGET_DIR)/release/libbz2.so \
-	  $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.so.1.0.4
-	ln -sf libbz2.so.1.0.4 $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.so.1.0
-	install -m 0644 \
-	  $(CARGO_TARGET_DIR)/release/libbz2.a \
-	  $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.a
-	install -m 0644 include/bzlib.h $(SAFE_STAGE)/usr/include/bzlib.h
+	install -m 0755 $(CARGO_TARGET_DIR)/release/libbz2.so $(libdir)/libbz2.so.1.0.4
+	ln -sfn libbz2.so.1.0.4 $(libdir)/libbz2.so.1.0
+	install -m 0644 $(CARGO_TARGET_DIR)/release/libbz2.a $(libdir)/libbz2.a
+	install -m 0644 include/bzlib.h $(includedir)/bzlib.h
+	CC='$(CC)' CFLAGS='$(CFLAGS)' CPPFLAGS='$(CPPFLAGS)' LDFLAGS='$(LDFLAGS)' \
+	  scripts/build-original-cli-against-safe.sh \
+	    --source-root $(CURDIR) \
+	    --output-dir $(cli_bindir) \
+	    --lib-dir $(CARGO_TARGET_DIR)/release \
+	    --include-dir $(CURDIR)/include
 
-.PHONY: override_dh_auto_build-indep
 ifeq (,$(filter nodoc,$(DEB_BUILD_OPTIONS)))
+.PHONY: override_dh_auto_build-indep
 override_dh_auto_build-indep: bzip2.info
+else
+.PHONY: override_dh_auto_build-indep
+override_dh_auto_build-indep:
 endif
 
-manual.texi: ../original/manual.xml
+manual.texi: manual.xml
 	docbook2x-texi \
 	  --string-param directory-category=Development \
 	  --string-param directory-description='A program and library for data compression' \
@@ -50,12 +58,24 @@ manual.texi: ../original/manual.xml
 bzip2.info: manual.texi
 	makeinfo -o bzip2.info manual.texi
 
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+.PHONY: override_dh_auto_test-arch
+override_dh_auto_test-arch:
+	cargo test --manifest-path Cargo.toml --release --locked --offline --lib
+else
+.PHONY: override_dh_auto_test-arch
+override_dh_auto_test-arch:
+endif
+
+.PHONY: override_dh_auto_test-indep
+override_dh_auto_test-indep:
+
 .PHONY: override_dh_auto_clean
 override_dh_auto_clean:
 	rm -rf \
 	  $(CURDIR)/debian/cargo-home \
-	  $(CURDIR)/../target/package \
-	  $(CURDIR)/../target/install \
+	  $(CURDIR)/../cargo \
+	  $(CURDIR)/../install \
 	  bzip2.info \
 	  bzip2.info-* \
 	  manual.texi
@@ -63,12 +83,19 @@ override_dh_auto_clean:
 .PHONY: override_dh_auto_install-arch
 override_dh_auto_install-arch:
 	mkdir -p debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH) debian/tmp/usr/include
-	cp -a $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.so.1.0.4 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
+	mkdir -p debian/tmp/usr/bin
+	cp -a $(libdir)/libbz2.so.1.0.4 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
 	ln -sf libbz2.so.1.0.4 debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.so.1.0
-	cp -a $(SAFE_STAGE)/usr/lib/$(DEB_HOST_MULTIARCH)/libbz2.a debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
-	cp -a $(SAFE_STAGE)/usr/include/bzlib.h debian/tmp/usr/include/
+	cp -a $(libdir)/libbz2.a debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/
+	cp -a $(includedir)/bzlib.h debian/tmp/usr/include/
+	cp -a $(cli_bindir)/bzip2 debian/tmp/usr/bin/
+	cp -a $(cli_bindir)/bzip2recover debian/tmp/usr/bin/
+	cp -a $(cli_bindir)/bzdiff debian/tmp/usr/bin/
+	cp -a $(cli_bindir)/bzgrep debian/tmp/usr/bin/
+	cp -a $(cli_bindir)/bzmore debian/tmp/usr/bin/
 
 .PHONY: override_dh_auto_install-indep
+override_dh_auto_install-indep:
 
 .PHONY: override_dh_link
 override_dh_link:

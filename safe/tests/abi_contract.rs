@@ -39,7 +39,7 @@ struct AllocStats {
     frees: AtomicUsize,
 }
 
-unsafe extern "C" {
+extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
     fn malloc(size: usize) -> *mut c_void;

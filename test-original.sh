@@ -9,9 +9,9 @@ usage() {
   cat <<'EOF'
 usage: test-original.sh [--only <binary-package>]
 
-Builds and installs the vendored original libbz2 inside Docker, then smoke-tests
-the Ubuntu 24.04 dependent packages recorded in dependents.json against that
-local libbz2 build.
+Installs the prebuilt safe Debian packages from target/package/out/ inside
+Docker, then smoke-tests the Ubuntu 24.04 dependent packages recorded in
+dependents.json against that installed libbz2 package set.
 
 --only runs just one dependent by exact .dependents[].binary_package.
 EOF
@@ -42,15 +42,38 @@ for tool in docker python3; do
   }
 done
 
-[[ -d "$ROOT/original" ]] || {
-  echo "missing original source tree" >&2
-  exit 1
-}
-
 [[ -f "$ROOT/dependents.json" ]] || {
   echo "missing dependents.json" >&2
   exit 1
 }
+
+PACKAGE_MANIFEST="$ROOT/target/package/out/package-manifest.txt"
+[[ -f "$PACKAGE_MANIFEST" ]] || {
+  echo "missing package manifest: $PACKAGE_MANIFEST; run bash safe/scripts/build-debs.sh first" >&2
+  exit 1
+}
+
+lookup_manifest_value() {
+  local key="$1"
+  local value=""
+
+  value="$(grep -E "^${key}=" "$PACKAGE_MANIFEST" | tail -n1 | cut -d= -f2-)"
+  [[ -n "$value" ]] || {
+    printf 'missing manifest entry: %s\n' "$key" >&2
+    exit 1
+  }
+  printf '%s\n' "$value"
+}
+
+PACKAGE_DEBS=()
+for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
+  deb_name="$(lookup_manifest_value "package:$pkg")"
+  [[ -f "$ROOT/target/package/out/$deb_name" ]] || {
+    printf 'required package artifact missing from target/package/out: %s\n' "$deb_name" >&2
+    exit 1
+  }
+  PACKAGE_DEBS+=( "/work/target/package/out/$deb_name" )
+done
 
 python3 - "$ROOT/dependents.json" "$ONLY" <<'PY'
 import json
@@ -91,10 +114,8 @@ FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
- && apt-get update \
+RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      bzip2 \
       build-essential \
       ca-certificates \
       gnupg \
@@ -121,8 +142,11 @@ RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.s
  && rm -rf /var/lib/apt/lists/*
 DOCKERFILE
 
+PACKAGE_DEB_STRING="${PACKAGE_DEBS[*]}"
+
 docker run --rm -i \
   -e "LIBBZ2_TEST_ONLY=$ONLY" \
+  -e "LIBBZ2_PACKAGE_DEBS=$PACKAGE_DEB_STRING" \
   -v "$ROOT:/work:ro" \
   "$IMAGE_TAG" \
   bash -s <<'CONTAINER'
@@ -133,7 +157,8 @@ export LC_ALL=C.UTF-8
 export DEBIAN_FRONTEND=noninteractive
 
 READ_ONLY_ROOT=/work
-BUILD_ROOT=/tmp/libbz2-original
+PACKAGE_OUT="$READ_ONLY_ROOT/target/package/out"
+PACKAGE_MANIFEST="$PACKAGE_OUT/package-manifest.txt"
 TEST_ROOT=/tmp/libbz2-dependent-tests
 ONLY="${LIBBZ2_TEST_ONLY:-}"
 CURRENT_STEP=""
@@ -193,6 +218,24 @@ reset_test_dir() {
   printf '%s\n' "$dir"
 }
 
+lookup_manifest_value() {
+  local key="$1"
+  local value=""
+
+  value="$(grep -E "^${key}=" "$PACKAGE_MANIFEST" | tail -n1 | cut -d= -f2-)"
+  [[ -n "$value" ]] || die "missing manifest entry inside container: $key"
+  printf '%s\n' "$value"
+}
+
+require_package_artifacts() {
+  [[ -f "$PACKAGE_MANIFEST" ]] || die "missing package manifest: $PACKAGE_MANIFEST"
+  for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
+    local deb_name=""
+    deb_name="$(lookup_manifest_value "package:$pkg")"
+    [[ -f "$PACKAGE_OUT/$deb_name" ]] || die "required package artifact missing from $PACKAGE_OUT: $deb_name"
+  done
+}
+
 assert_links_to_active_libbz2() {
   local target="$1"
   local resolved=""
@@ -209,20 +252,14 @@ assert_links_to_active_libbz2() {
   }
 }
 
-build_original_libbz2() {
-  log_step "Building and installing original libbz2"
-  rm -rf "$BUILD_ROOT" "$TEST_ROOT"
+install_safe_packages() {
+  log_step "Installing safe Debian packages"
+  require_package_artifacts
+  rm -rf "$TEST_ROOT"
   mkdir -p "$TEST_ROOT"
-  cp -a "$READ_ONLY_ROOT/original" "$BUILD_ROOT"
-  cd "$BUILD_ROOT"
-  make clean >/tmp/libbz2-make-clean.log 2>&1
-  make -j"$(nproc)" >/tmp/libbz2-make.log 2>&1
-  make install PREFIX=/usr/local >/tmp/libbz2-install.log 2>&1
-  printf '/usr/local/lib\n' >/etc/ld.so.conf.d/000-local-libbz2.conf
-  ldconfig
-  ACTIVE_LIBBZ2="$(readlink -f /usr/local/lib/libbz2.so.1.0)"
-  [[ -n "$ACTIVE_LIBBZ2" && -f "$ACTIVE_LIBBZ2" ]] || die "failed to install local libbz2 shared library"
-  cd /
+  dpkg -i ${LIBBZ2_PACKAGE_DEBS}
+  ACTIVE_LIBBZ2="$(readlink -f "/usr/lib/${MULTIARCH}/libbz2.so.1.0")"
+  [[ -n "$ACTIVE_LIBBZ2" && -f "$ACTIVE_LIBBZ2" ]] || die "failed to locate installed libbz2 shared library"
 }
 
 start_mariadb_server() {
@@ -923,7 +960,7 @@ run_test() {
   fi
 }
 
-build_original_libbz2
+install_safe_packages
 run_test "libapt-pkg6.0t64" test_libapt_pkg
 run_test "bzip2" test_bzip2_cli
 run_test "libpython3.12-stdlib" test_python_bz2

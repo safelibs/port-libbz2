@@ -2,9 +2,7 @@ Source: bzip2
 Maintainer: SafeLibs Automation <safelibs@example.invalid>
 Section: utils
 Priority: important
-Build-Depends: debhelper-compat (= 13),
-               cargo,
-               rustc
+Build-Depends: debhelper-compat (= 13), cargo, rustc
 Build-Depends-Indep: texinfo,
                      docbook-xml,
                      docbook2x,
@@ -20,7 +18,10 @@ Depends: ${misc:Depends},
          ${shlibs:Depends}
 Pre-Depends: ${misc:Pre-Depends}
 Description: high-quality block-sorting file compressor library - runtime
- This package contains the drop-in libbzip2 runtime library.
+ This package contains the drop-in libbzip2 runtime library built from the
+ safe Rust port.
+ .
+ bzip2 is a freely available, patent free, data compressor.
 
 Package: libbz2-dev
 Architecture: any
@@ -34,6 +35,8 @@ Recommends: bzip2-doc
 Replaces: bzip2 (<< 0.9.5d-3)
 Description: high-quality block-sorting file compressor library - development
  Static libraries and include files for the libbzip2-compatible Rust port.
+ .
+ bzip2 is a freely available, patent free, data compressor.
 
 Package: bzip2
 Architecture: any
@@ -45,7 +48,10 @@ Depends: ${misc:Depends},
 Suggests: bzip2-doc
 Replaces: libbz2 (<< 0.9.5d-3)
 Description: high-quality block-sorting file compressor - utilities
- This package carries the libbzip2-compatible command line tools.
+ This package carries the upstream command line tools rebuilt against the safe
+ Rust libbzip2 implementation.
+ .
+ bzip2 is a freely available, patent free, data compressor.
 
 Package: bzip2-doc
 Architecture: all
@@ -55,4 +61,7 @@ Priority: optional
 Depends: ${misc:Depends}
 Replaces: bzip2 (<< 1.0.4-0ubuntu2)
 Description: high-quality block-sorting file compressor - documentation
- This package contains the bzip2 manual in HTML, PDF, PostScript, and Info formats.
+ This package contains the bzip2 user manual in HTML, PDF, PS and Texinfo
+ formats.
+ .
+ bzip2 is a freely available, patent free, data compressor.

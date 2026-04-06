@@ -8,7 +8,7 @@ use crate::types::{bz_stream, CFile};
 use core::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_uint};
 
-unsafe extern "C" {
+extern "C" {
     fn fprintf(stream: *mut CFile, format: *const c_char, ...) -> c_int;
     fn fputs(s: *const c_char, stream: *mut CFile) -> c_int;
     fn exit(status: c_int) -> !;

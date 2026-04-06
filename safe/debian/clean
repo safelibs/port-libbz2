@@ -1,4 +1,4 @@
-../target/package
-../target/install
+../cargo
+../install
 bzip2.info*
 manual.texi

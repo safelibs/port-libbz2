@@ -3,7 +3,7 @@ use crate::types::{Int32, UChar};
 use std::os::raw::c_int;
 use std::slice;
 
-unsafe extern "C" {
+extern "C" {
     fn BZ2_bz__AssertH__fail(errcode: c_int);
 }
 

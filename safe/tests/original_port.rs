@@ -27,7 +27,7 @@ const BUFFER_PAYLOAD_LEN: usize = 9_000;
 const FILE_PAYLOAD_LEN: usize = 64_000;
 const WRAPPER_PAYLOAD_LEN: usize = 48_000;
 
-unsafe extern "C" {
+extern "C" {
     fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
 }

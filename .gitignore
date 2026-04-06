@@ -1,4 +1,5 @@
 /safe/target/
+/target/package/
 /target/compat/
 /original/*.sho
 /original/bzip2

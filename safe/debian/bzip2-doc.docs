@@ -1,4 +1,4 @@
-../original/manual.html
-../original/manual.pdf
-../original/manual.ps
-manual.texi
+*.pdf
+*.ps
+*.html
+*.texi

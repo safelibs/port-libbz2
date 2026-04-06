@@ -46,7 +46,7 @@ const SAMPLE3_RANDOMIZED_BZ2: &[u8] = include_bytes!(concat!(
     "/tests/fixtures/sample3.randomized.bz2"
 ));
 
-unsafe extern "C" {
+extern "C" {
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
 }

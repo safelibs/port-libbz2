@@ -1,0 +1,5 @@
+#!/bin/sh
+set -C -e -f -u
+cd "$AUTOPKGTEST_TMP"
+truncate -s 2049M bigfile
+bzip2 bigfile

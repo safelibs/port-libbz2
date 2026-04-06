@@ -19,10 +19,6 @@ fn main() {
     let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
     if target_os == "linux" {
-        println!(
-            "cargo:rustc-cdylib-link-arg=-Wl,--version-script={}",
-            abi_dir.join("libbz2.map").display()
-        );
         println!("cargo:rustc-cdylib-link-arg=-Wl,-soname,libbz2.so.1.0");
     }
 
