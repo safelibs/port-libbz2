@@ -24,6 +24,12 @@ const EXPECTED_AUTOPKGTESTS: &[&str] = &[
     "compress",
     "grep",
 ];
+const EXPECTED_REPRESENTATIVE_DOWNSTREAMS: &[&str] = &[
+    "libapt-pkg6.0t64",
+    "bzip2",
+    "libpython3.12-stdlib",
+    "php8.3-bz2",
+];
 
 fn repo_path(path: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -88,10 +94,14 @@ fn release_gate_keeps_runtime_and_compile_compatibility_split_explicit() {
         "bash \"$ROOT/safe/scripts/run-debian-tests.sh\" --tests link-with-shared bigfile bzexe-test compare compress grep",
         "safe/scripts/run-full-suite.sh",
     );
-    assert_contains(
-        &full_suite,
-        "\"$ROOT/test-original.sh\"",
-        "safe/scripts/run-full-suite.sh",
+    for dependent in EXPECTED_REPRESENTATIVE_DOWNSTREAMS {
+        let needle = format!("\"$ROOT/test-original.sh\" --only {dependent}");
+        assert_contains(&full_suite, &needle, "safe/scripts/run-full-suite.sh");
+    }
+    assert_eq!(
+        full_suite.matches("\"$ROOT/test-original.sh\" --only ").count(),
+        EXPECTED_REPRESENTATIVE_DOWNSTREAMS.len(),
+        "safe/scripts/run-full-suite.sh should keep exactly four representative downstream --only checks",
     );
 
     let original_harness = read_repo_text("test-original.sh");
