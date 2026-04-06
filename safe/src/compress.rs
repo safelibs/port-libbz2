@@ -1,14 +1,17 @@
-use crate::alloc::{drop_box, reset_stream_totals, zeroed_box};
+use crate::alloc::{
+    alloc_zeroed_slice_with_bzalloc, alloc_zeroed_with_bzalloc, bz_config_ok,
+    ensure_default_allocators, free_with_bzfree, reset_stream_totals,
+};
 use crate::blocksort::BZ2_blockSort;
 use crate::constants::{
     BZ_CONFIG_ERROR, BZ_FINISH, BZ_FINISH_OK, BZ_FLUSH, BZ_FLUSH_OK, BZ_G_SIZE, BZ_MAX_SELECTORS,
-    BZ_MEM_ERROR, BZ_M_FINISHING, BZ_M_FLUSHING, BZ_M_IDLE, BZ_M_RUNNING, BZ_N_GROUPS, BZ_N_ITERS,
+    BZ_M_FINISHING, BZ_M_FLUSHING, BZ_M_IDLE, BZ_M_RUNNING, BZ_N_GROUPS, BZ_N_ITERS,
     BZ_N_OVERSHOOT, BZ_OK, BZ_PARAM_ERROR, BZ_RUN, BZ_RUNA, BZ_RUNB, BZ_RUN_OK, BZ_SEQUENCE_ERROR,
     BZ_STREAM_END, BZ_S_INPUT, BZ_S_OUTPUT,
 };
 use crate::crc::{bz_crc_finalize, bz_crc_init, bz_crc_update};
 use crate::huffman::{BZ2_hbAssignCodes, BZ2_hbMakeCodeLengths};
-use crate::types::{bz_stream, Bool, EState, Int32, UChar, UInt16, UInt32};
+use crate::types::{bz_stream, stream_state, Bool, EState, Int32, UChar, UInt16, UInt32};
 use core::mem::size_of;
 use std::os::raw::{c_char, c_int};
 use std::{ptr, slice};
@@ -34,10 +37,6 @@ unsafe fn assert_h(cond: bool, errcode: Int32) {
     }
 }
 
-fn bz_config_ok() -> bool {
-    size_of::<c_int>() == 4 && size_of::<i16>() == 2 && size_of::<c_char>() == 1
-}
-
 unsafe extern "C" fn default_bzalloc(
     _opaque: *mut core::ffi::c_void,
     items: c_int,
@@ -61,15 +60,6 @@ unsafe extern "C" fn default_bzalloc(
 unsafe extern "C" fn default_bzfree(_opaque: *mut core::ffi::c_void, addr: *mut core::ffi::c_void) {
     if !addr.is_null() {
         free(addr);
-    }
-}
-
-unsafe fn ensure_default_allocators(strm: *mut bz_stream) {
-    if (*strm).bzalloc.is_none() {
-        (*strm).bzalloc = Some(default_bzalloc);
-    }
-    if (*strm).bzfree.is_none() {
-        (*strm).bzfree = Some(default_bzfree);
     }
 }
 
@@ -154,28 +144,16 @@ unsafe fn push_zbit_byte(s: &mut EState, byte: UChar) {
     s.numZ += 1;
 }
 
-unsafe fn alloc_zeroed_u32_slice(len: usize) -> Result<*mut UInt32, c_int> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(len).map_err(|_| BZ_MEM_ERROR)?;
-    values.resize(len, 0);
-    Ok(Box::into_raw(values.into_boxed_slice()).cast())
-}
-
 unsafe fn release_storage(s: &mut EState) {
-    if let Some(block_cap) = block_capacity(s.blockSize100k) {
+    if block_capacity(s.blockSize100k).is_some() {
         if !s.arr1.is_null() {
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                s.arr1, block_cap,
-            )));
+            free_with_bzfree(s.strm, s.arr1);
             s.arr1 = ptr::null_mut();
             s.ptr = ptr::null_mut();
             s.mtfv = ptr::null_mut();
         }
         if !s.arr2.is_null() {
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                s.arr2,
-                block_cap + BZ_N_OVERSHOOT as usize,
-            )));
+            free_with_bzfree(s.strm, s.arr2);
             s.arr2 = ptr::null_mut();
             s.block = ptr::null_mut();
             s.zbits = ptr::null_mut();
@@ -190,9 +168,7 @@ unsafe fn release_storage(s: &mut EState) {
     }
 
     if !s.ftab.is_null() {
-        drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-            s.ftab, 65_537,
-        )));
+        free_with_bzfree(s.strm, s.ftab);
         s.ftab = ptr::null_mut();
     }
 }
@@ -831,7 +807,7 @@ pub unsafe extern "C" fn BZ2_bzCompressInit(
         return BZ_PARAM_ERROR;
     }
 
-    ensure_default_allocators(strm);
+    ensure_default_allocators(strm, Some(default_bzalloc), Some(default_bzfree));
     reset_stream_totals(strm);
 
     let mut work_factor = workFactor;
@@ -843,7 +819,10 @@ pub unsafe extern "C" fn BZ2_bzCompressInit(
         return BZ_CONFIG_ERROR;
     };
 
-    let state = zeroed_box::<EState>();
+    let state = match alloc_zeroed_with_bzalloc::<EState>(strm) {
+        Ok(ptr) => ptr,
+        Err(code) => return code,
+    };
     (*state).strm = strm;
     (*state).mode = BZ_M_RUNNING;
     (*state).state = BZ_S_INPUT;
@@ -856,34 +835,30 @@ pub unsafe extern "C" fn BZ2_bzCompressInit(
     (*state).arr2 = ptr::null_mut();
     (*state).ftab = ptr::null_mut();
 
-    let arr1 = match alloc_zeroed_u32_slice(block_cap) {
+    let arr1 = match alloc_zeroed_slice_with_bzalloc::<UInt32>(strm, block_cap) {
         Ok(ptr) => ptr,
         Err(code) => {
-            drop_box::<EState>(state.cast());
+            free_with_bzfree(strm, state);
             return code;
         }
     };
-    let arr2 = match alloc_zeroed_u32_slice(block_cap + BZ_N_OVERSHOOT as usize) {
+    let arr2 = match alloc_zeroed_slice_with_bzalloc::<UInt32>(
+        strm,
+        block_cap + BZ_N_OVERSHOOT as usize,
+    ) {
         Ok(ptr) => ptr,
         Err(code) => {
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                arr1, block_cap,
-            )));
-            drop_box::<EState>(state.cast());
+            free_with_bzfree(strm, arr1);
+            free_with_bzfree(strm, state);
             return code;
         }
     };
-    let ftab = match alloc_zeroed_u32_slice(65_537) {
+    let ftab = match alloc_zeroed_slice_with_bzalloc::<UInt32>(strm, 65_537) {
         Ok(ptr) => ptr,
         Err(code) => {
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                arr1, block_cap,
-            )));
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                arr2,
-                block_cap + BZ_N_OVERSHOOT as usize,
-            )));
-            drop_box::<EState>(state.cast());
+            free_with_bzfree(strm, arr1);
+            free_with_bzfree(strm, arr2);
+            free_with_bzfree(strm, state);
             return code;
         }
     };
@@ -908,7 +883,7 @@ pub unsafe extern "C" fn BZ2_bzCompress(strm: *mut bz_stream, action: c_int) -> 
         return BZ_PARAM_ERROR;
     }
 
-    let s = &mut *((*strm).state.cast::<EState>());
+    let s = &mut *stream_state::<EState>(strm);
     if s.strm != strm {
         return BZ_PARAM_ERROR;
     }
@@ -969,12 +944,12 @@ pub unsafe extern "C" fn BZ2_bzCompressEnd(strm: *mut bz_stream) -> c_int {
     if strm.is_null() || (*strm).state.is_null() {
         return BZ_PARAM_ERROR;
     }
-    let state = &mut *((*strm).state.cast::<EState>());
+    let state = &mut *stream_state::<EState>(strm);
     if state.strm != strm {
         return BZ_PARAM_ERROR;
     }
     release_storage(state);
-    drop_box::<EState>((*strm).state);
+    free_with_bzfree(strm, state);
     (*strm).state = ptr::null_mut();
     BZ_OK
 }

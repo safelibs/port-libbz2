@@ -1,16 +1,18 @@
-use crate::alloc::{drop_box, reset_stream_totals, zeroed_box};
+use crate::alloc::{
+    alloc_zeroed_slice_with_bzalloc, alloc_zeroed_with_bzalloc, bz_config_ok,
+    ensure_default_allocators, free_with_bzfree, reset_stream_totals,
+};
 use crate::constants::{
     BZ_CONFIG_ERROR, BZ_DATA_ERROR, BZ_DATA_ERROR_MAGIC, BZ_G_SIZE, BZ_MAX_ALPHA_SIZE,
-    BZ_MAX_SELECTORS, BZ_MEM_ERROR, BZ_OK, BZ_PARAM_ERROR, BZ_RUNA, BZ_RUNB, BZ_SEQUENCE_ERROR,
-    BZ_STREAM_END, BZ_X_BCRC_1, BZ_X_BLKHDR_1, BZ_X_CCRC_1, BZ_X_ENDHDR_2, BZ_X_IDLE, BZ_X_MAGIC_1,
+    BZ_MAX_SELECTORS, BZ_OK, BZ_PARAM_ERROR, BZ_RUNA, BZ_RUNB, BZ_SEQUENCE_ERROR, BZ_STREAM_END,
+    BZ_X_BCRC_1, BZ_X_BLKHDR_1, BZ_X_CCRC_1, BZ_X_ENDHDR_2, BZ_X_IDLE, BZ_X_MAGIC_1,
     BZ_X_MAPPING_1, BZ_X_OUTPUT,
 };
 use crate::crc::{bz_crc_finalize, bz_crc_init, bz_crc_update};
 use crate::huffman::hb_create_decode_tables_checked;
 use crate::rand::{rand_init, rand_mask, rand_update_mask};
-use crate::types::{bz_stream, DState, Int32, UChar, UInt16, UInt32};
-use std::mem::size_of;
-use std::os::raw::{c_char, c_int};
+use crate::types::{bz_stream, stream_state, DState, Int32, UChar, UInt16, UInt32};
+use std::os::raw::c_int;
 use std::ptr;
 use std::slice;
 
@@ -169,19 +171,6 @@ fn uchar_from_i32(value: Int32) -> Result<UChar, c_int> {
     UChar::try_from(value).map_err(|_| BZ_DATA_ERROR)
 }
 
-fn bz_config_ok() -> bool {
-    size_of::<c_int>() == 4 && size_of::<i16>() == 2 && size_of::<c_char>() == 1
-}
-
-unsafe fn ensure_default_allocators(strm: *mut bz_stream) {
-    if (*strm).bzalloc.is_none() {
-        (*strm).bzalloc = Some(default_bzalloc);
-    }
-    if (*strm).bzfree.is_none() {
-        (*strm).bzfree = Some(default_bzfree);
-    }
-}
-
 unsafe extern "C" fn default_bzalloc(
     _opaque: *mut core::ffi::c_void,
     items: c_int,
@@ -200,7 +189,9 @@ unsafe extern "C" fn default_bzalloc(
 }
 
 unsafe extern "C" fn default_bzfree(_opaque: *mut core::ffi::c_void, addr: *mut core::ffi::c_void) {
-    free(addr)
+    if !addr.is_null() {
+        free(addr);
+    }
 }
 
 fn block_capacity(block_size_100k: Int32) -> Option<usize> {
@@ -213,25 +204,17 @@ fn ll4_capacity(block_capacity: usize) -> Option<usize> {
 
 unsafe fn release_block_storage(state: *mut DState) {
     let s = &mut *state;
-    if let Some(capacity) = block_capacity(s.blockSize100k) {
+    if block_capacity(s.blockSize100k).is_some() {
         if !s.tt.is_null() {
-            drop(Box::<[UInt32]>::from_raw(ptr::slice_from_raw_parts_mut(
-                s.tt, capacity,
-            )));
+            free_with_bzfree(s.strm, s.tt);
             s.tt = ptr::null_mut();
         }
         if !s.ll16.is_null() {
-            drop(Box::<[UInt16]>::from_raw(ptr::slice_from_raw_parts_mut(
-                s.ll16, capacity,
-            )));
+            free_with_bzfree(s.strm, s.ll16);
             s.ll16 = ptr::null_mut();
         }
         if !s.ll4.is_null() {
-            if let Some(ll4_cap) = ll4_capacity(capacity) {
-                drop(Box::<[UChar]>::from_raw(ptr::slice_from_raw_parts_mut(
-                    s.ll4, ll4_cap,
-                )));
-            }
+            free_with_bzfree(s.strm, s.ll4);
             s.ll4 = ptr::null_mut();
         }
     } else {
@@ -239,13 +222,6 @@ unsafe fn release_block_storage(state: *mut DState) {
         s.ll16 = ptr::null_mut();
         s.ll4 = ptr::null_mut();
     }
-}
-
-fn alloc_zeroed_slice<T: Default + Clone>(len: usize) -> Result<*mut T, c_int> {
-    let mut values = Vec::new();
-    values.try_reserve_exact(len).map_err(|_| BZ_MEM_ERROR)?;
-    values.resize(len, T::default());
-    Ok(Box::into_raw(values.into_boxed_slice()).cast())
 }
 
 unsafe fn allocate_block_storage(state: *mut DState) -> c_int {
@@ -258,11 +234,11 @@ unsafe fn allocate_block_storage(state: *mut DState) -> c_int {
         let Some(ll4_cap) = ll4_capacity(capacity) else {
             return BZ_DATA_ERROR;
         };
-        match alloc_zeroed_slice::<UInt16>(capacity) {
+        match alloc_zeroed_slice_with_bzalloc::<UInt16>(s.strm, capacity) {
             Ok(ptr) => s.ll16 = ptr,
             Err(code) => return code,
         }
-        match alloc_zeroed_slice::<UChar>(ll4_cap) {
+        match alloc_zeroed_slice_with_bzalloc::<UChar>(s.strm, ll4_cap) {
             Ok(ptr) => s.ll4 = ptr,
             Err(code) => {
                 release_block_storage(state);
@@ -270,7 +246,7 @@ unsafe fn allocate_block_storage(state: *mut DState) -> c_int {
             }
         }
     } else {
-        match alloc_zeroed_slice::<UInt32>(capacity) {
+        match alloc_zeroed_slice_with_bzalloc::<UInt32>(s.strm, capacity) {
             Ok(ptr) => s.tt = ptr,
             Err(code) => return code,
         }
@@ -1084,10 +1060,13 @@ pub unsafe extern "C" fn BZ2_bzDecompressInit(
         return BZ_PARAM_ERROR;
     }
 
-    ensure_default_allocators(strm);
+    ensure_default_allocators(strm, Some(default_bzalloc), Some(default_bzfree));
     reset_stream_totals(strm);
 
-    let state = zeroed_box::<DState>();
+    let state = match alloc_zeroed_with_bzalloc::<DState>(strm) {
+        Ok(ptr) => ptr,
+        Err(code) => return code,
+    };
     (*state).strm = strm;
     (*state).state = DecodeState::Magic1 as Int32;
     (*state).bsLive = 0;
@@ -1115,7 +1094,7 @@ pub unsafe extern "C" fn BZ2_bzDecompress(strm: *mut bz_stream) -> c_int {
         return BZ_PARAM_ERROR;
     }
 
-    let s = &mut *((*strm).state.cast::<DState>());
+    let s = &mut *stream_state::<DState>(strm);
     if s.strm != strm {
         return BZ_PARAM_ERROR;
     }
@@ -1182,13 +1161,13 @@ pub unsafe extern "C" fn BZ2_bzDecompressEnd(strm: *mut bz_stream) -> c_int {
         return BZ_PARAM_ERROR;
     }
 
-    let state = (*strm).state.cast::<DState>();
+    let state = stream_state::<DState>(strm);
     if (*state).strm != strm {
         return BZ_PARAM_ERROR;
     }
 
     release_block_storage(state);
-    drop_box::<DState>((*strm).state);
+    free_with_bzfree(strm, state);
     (*strm).state = ptr::null_mut();
     BZ_OK
 }

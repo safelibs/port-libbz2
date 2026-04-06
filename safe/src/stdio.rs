@@ -5,7 +5,7 @@ use crate::constants::{
 };
 use crate::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
 use crate::ffi::{bzerror_message_ptr, set_error_slot};
-use crate::types::{BzFileState, CFile};
+use crate::types::{bzfile_from_handle, BzFileState, CFile};
 use core::ffi::c_void;
 use core::mem::MaybeUninit;
 use std::ffi::{CStr, CString};
@@ -15,7 +15,6 @@ use std::ptr;
 const EOF_VALUE: c_int = -1;
 
 unsafe extern "C" {
-    fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
     fn fdopen(fd: c_int, mode: *const c_char) -> *mut CFile;
     fn fclose(file: *mut CFile) -> c_int;
     fn fflush(file: *mut CFile) -> c_int;
@@ -28,12 +27,22 @@ unsafe extern "C" {
     static mut stdout: *mut CFile;
 }
 
+#[cfg(any(target_os = "linux", target_os = "android"))]
+unsafe extern "C" {
+    fn fopen64(path: *const c_char, mode: *const c_char) -> *mut CFile;
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+unsafe extern "C" {
+    fn fopen(path: *const c_char, mode: *const c_char) -> *mut CFile;
+}
+
 unsafe fn zeroed_bzfile() -> Box<BzFileState> {
     Box::new(MaybeUninit::<BzFileState>::zeroed().assume_init())
 }
 
 unsafe fn state_from_handle(handle: *mut c_void) -> *mut BzFileState {
-    handle.cast()
+    bzfile_from_handle(handle)
 }
 
 unsafe fn set_bzerror(bzerror: *mut c_int, bzf: *mut BzFileState, code: c_int) {
@@ -86,6 +95,17 @@ unsafe fn parse_open_mode(mode: *const c_char) -> Option<(bool, c_int, bool)> {
     Some((writing, block_size_100k, small_mode))
 }
 
+unsafe fn open_path_binary(path: *const c_char, mode: *const c_char) -> *mut CFile {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        fopen64(path, mode)
+    }
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    {
+        fopen(path, mode)
+    }
+}
+
 unsafe fn bzopen_or_bzdopen(
     path: *const c_char,
     fd: c_int,
@@ -113,7 +133,7 @@ unsafe fn bzopen_or_bzdopen(
             stdin
         }
     } else {
-        fopen(path, mode2.as_ptr())
+        open_path_binary(path, mode2.as_ptr())
     };
 
     if file.is_null() {
@@ -420,27 +440,15 @@ pub unsafe extern "C" fn BZ2_bzWriteClose(
     nbytes_in: *mut u32,
     nbytes_out: *mut u32,
 ) {
-    let mut in_lo32 = 0;
-    let mut in_hi32 = 0;
-    let mut out_lo32 = 0;
-    let mut out_hi32 = 0;
-
     BZ2_bzWriteClose64(
         bzerror,
         b,
         abandon,
-        &mut in_lo32,
-        &mut in_hi32,
-        &mut out_lo32,
-        &mut out_hi32,
+        nbytes_in,
+        ptr::null_mut(),
+        nbytes_out,
+        ptr::null_mut(),
     );
-
-    if !nbytes_in.is_null() {
-        *nbytes_in = in_lo32;
-    }
-    if !nbytes_out.is_null() {
-        *nbytes_out = out_lo32;
-    }
 }
 
 #[no_mangle]
@@ -453,19 +461,6 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
     nbytes_out_lo32: *mut u32,
     nbytes_out_hi32: *mut u32,
 ) {
-    if !nbytes_in_lo32.is_null() {
-        *nbytes_in_lo32 = 0;
-    }
-    if !nbytes_in_hi32.is_null() {
-        *nbytes_in_hi32 = 0;
-    }
-    if !nbytes_out_lo32.is_null() {
-        *nbytes_out_lo32 = 0;
-    }
-    if !nbytes_out_hi32.is_null() {
-        *nbytes_out_hi32 = 0;
-    }
-
     if b.is_null() {
         set_error_slot(bzerror, BZ_OK);
         return;
@@ -478,6 +473,19 @@ pub unsafe extern "C" fn BZ2_bzWriteClose64(
     if ferror((*bzf).handle) != 0 {
         set_bzerror(bzerror, bzf, BZ_IO_ERROR);
         return;
+    }
+
+    if !nbytes_in_lo32.is_null() {
+        *nbytes_in_lo32 = 0;
+    }
+    if !nbytes_in_hi32.is_null() {
+        *nbytes_in_hi32 = 0;
+    }
+    if !nbytes_out_lo32.is_null() {
+        *nbytes_out_lo32 = 0;
+    }
+    if !nbytes_out_hi32.is_null() {
+        *nbytes_out_hi32 = 0;
     }
 
     if abandon == 0 && (*bzf).lastErr == BZ_OK {

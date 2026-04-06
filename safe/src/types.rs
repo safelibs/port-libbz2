@@ -155,3 +155,13 @@ pub struct BzFileState {
     pub lastErr: Int32,
     pub initialisedOk: Bool,
 }
+
+#[inline]
+pub(crate) unsafe fn bzfile_from_handle(handle: *mut c_void) -> *mut BzFileState {
+    handle.cast()
+}
+
+#[inline]
+pub(crate) unsafe fn stream_state<T>(strm: *mut bz_stream) -> *mut T {
+    (*strm).state.cast()
+}

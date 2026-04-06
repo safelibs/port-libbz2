@@ -1,28 +1,41 @@
 use crate::compress::{BZ2_bzCompress, BZ2_bzCompressEnd, BZ2_bzCompressInit};
 use crate::constants::{
-    BZ_DATA_ERROR, BZ_DATA_ERROR_MAGIC, BZ_FINISH, BZ_FINISH_OK, BZ_IO_ERROR, BZ_MEM_ERROR, BZ_OK,
-    BZ_OUTBUFF_FULL, BZ_PARAM_ERROR, BZ_RUN_OK, BZ_SEQUENCE_ERROR, BZ_STREAM_END,
+    BZ_FINISH, BZ_FINISH_OK, BZ_OK, BZ_OUTBUFF_FULL, BZ_PARAM_ERROR, BZ_STREAM_END,
     BZ_UNEXPECTED_EOF, BZ_VERSION_BYTES,
 };
 use crate::decompress::{BZ2_bzDecompress, BZ2_bzDecompressEnd, BZ2_bzDecompressInit};
-use crate::types::bz_stream;
+use crate::types::{bz_stream, CFile};
 use core::mem::MaybeUninit;
 use std::os::raw::{c_char, c_int, c_uint};
-use std::process;
 
-static BZ_OK_MSG: &[u8] = b"OK\0";
-static BZ_SEQUENCE_ERROR_MSG: &[u8] = b"SEQUENCE_ERROR\0";
-static BZ_PARAM_ERROR_MSG: &[u8] = b"PARAM_ERROR\0";
-static BZ_MEM_ERROR_MSG: &[u8] = b"MEM_ERROR\0";
-static BZ_DATA_ERROR_MSG: &[u8] = b"DATA_ERROR\0";
-static BZ_DATA_ERROR_MAGIC_MSG: &[u8] = b"DATA_ERROR_MAGIC\0";
-static BZ_IO_ERROR_MSG: &[u8] = b"IO_ERROR\0";
-static BZ_UNEXPECTED_EOF_MSG: &[u8] = b"UNEXPECTED_EOF\0";
-static BZ_OUTBUFF_FULL_MSG: &[u8] = b"OUTBUFF_FULL\0";
-static BZ_CONFIG_ERROR_MSG: &[u8] = b"CONFIG_ERROR\0";
-static BZ_STREAM_END_MSG: &[u8] = b"STREAM_END\0";
-static BZ_RUN_OK_MSG: &[u8] = b"RUN_OK\0";
-static BZ_FINISH_OK_MSG: &[u8] = b"FINISH_OK\0";
+unsafe extern "C" {
+    fn fprintf(stream: *mut CFile, format: *const c_char, ...) -> c_int;
+    fn fputs(s: *const c_char, stream: *mut CFile) -> c_int;
+    fn exit(status: c_int) -> !;
+    static mut stderr: *mut CFile;
+}
+
+static bzerrorstrings: [&[u8]; 16] = [
+    b"OK\0",
+    b"SEQUENCE_ERROR\0",
+    b"PARAM_ERROR\0",
+    b"MEM_ERROR\0",
+    b"DATA_ERROR\0",
+    b"DATA_ERROR_MAGIC\0",
+    b"IO_ERROR\0",
+    b"UNEXPECTED_EOF\0",
+    b"OUTBUFF_FULL\0",
+    b"CONFIG_ERROR\0",
+    b"???\0",
+    b"???\0",
+    b"???\0",
+    b"???\0",
+    b"???\0",
+    b"???\0",
+];
+
+static ASSERT_H_FORMAT: &[u8] = b"\n\nbzip2/libbzip2: internal error number %d.\nThis is a bug in bzip2/libbzip2, %s.\nPlease report it to: bzip2-devel@sourceware.org.  If this happened\nwhen you were using some program which uses libbzip2 as a\ncomponent, you should also report this bug to the author(s)\nof that program.  Please make an effort to report this bug;\ntimely and accurate bug reports eventually lead to higher\nquality software.  Thanks.\n\n\0";
+static ASSERT_H_1007_NOTE: &[u8] = b"\n*** A special note about internal error number 1007 ***\n\nExperience suggests that a common cause of i.e. 1007\nis unreliable memory or other hardware.  The 1007 assertion\njust happens to cross-check the results of huge numbers of\nmemory reads/writes, and so acts (unintendedly) as a stress\ntest of your memory system.\n\nI suggest the following: try compressing the file again,\npossibly monitoring progress in detail with the -vv flag.\n\n* If the error cannot be reproduced, and/or happens at different\n  points in compression, you may have a flaky memory system.\n  Try a memory-test program.  I have used Memtest86\n  (www.memtest86.com).  At the time of writing it is free (GPLd).\n  Memtest86 tests memory much more thorougly than your BIOSs\n  power-on test, and may find failures that the BIOS doesn't.\n\n* If the error can be repeatably reproduced, this is a bug in\n  bzip2, and I would very much like to hear about it.  Please\n  let me know, and, ideally, save a copy of the file causing the\n  problem -- without which I will be unable to investigate it.\n\n\0";
 
 pub(crate) unsafe fn set_error_slot(slot: *mut c_int, code: c_int) {
     if !slot.is_null() {
@@ -31,21 +44,15 @@ pub(crate) unsafe fn set_error_slot(slot: *mut c_int, code: c_int) {
 }
 
 pub(crate) fn bzerror_message_ptr(code: c_int) -> *const c_char {
-    match code {
-        BZ_OK => BZ_OK_MSG.as_ptr().cast(),
-        BZ_RUN_OK => BZ_RUN_OK_MSG.as_ptr().cast(),
-        BZ_FINISH_OK => BZ_FINISH_OK_MSG.as_ptr().cast(),
-        BZ_STREAM_END => BZ_STREAM_END_MSG.as_ptr().cast(),
-        BZ_SEQUENCE_ERROR => BZ_SEQUENCE_ERROR_MSG.as_ptr().cast(),
-        BZ_PARAM_ERROR => BZ_PARAM_ERROR_MSG.as_ptr().cast(),
-        BZ_MEM_ERROR => BZ_MEM_ERROR_MSG.as_ptr().cast(),
-        BZ_DATA_ERROR => BZ_DATA_ERROR_MSG.as_ptr().cast(),
-        BZ_DATA_ERROR_MAGIC => BZ_DATA_ERROR_MAGIC_MSG.as_ptr().cast(),
-        BZ_IO_ERROR => BZ_IO_ERROR_MSG.as_ptr().cast(),
-        BZ_UNEXPECTED_EOF => BZ_UNEXPECTED_EOF_MSG.as_ptr().cast(),
-        BZ_OUTBUFF_FULL => BZ_OUTBUFF_FULL_MSG.as_ptr().cast(),
-        _ => BZ_CONFIG_ERROR_MSG.as_ptr().cast(),
-    }
+    let index = if code > 0 {
+        0usize
+    } else {
+        usize::try_from(code.wrapping_neg())
+            .ok()
+            .filter(|index| *index < bzerrorstrings.len())
+            .unwrap_or(bzerrorstrings.len() - 1)
+    };
+    bzerrorstrings[index].as_ptr().cast()
 }
 
 #[no_mangle]
@@ -153,6 +160,16 @@ pub unsafe extern "C" fn BZ2_bzBuffToBuffDecompress(
 
 #[no_mangle]
 pub extern "C" fn BZ2_bz__AssertH__fail(errcode: c_int) {
-    eprintln!("libbz2-safe internal assertion failure: {}", errcode);
-    process::abort();
+    unsafe {
+        let _ = fprintf(
+            stderr,
+            ASSERT_H_FORMAT.as_ptr().cast(),
+            errcode,
+            BZ2_bzlibVersion(),
+        );
+        if errcode == 1007 {
+            let _ = fputs(ASSERT_H_1007_NOTE.as_ptr().cast(), stderr);
+        }
+        exit(3);
+    }
 }
