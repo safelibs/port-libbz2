@@ -28,7 +28,7 @@ includedir := $(SAFE_STAGE)/usr/include
 .PHONY: override_dh_auto_build-arch
 override_dh_auto_build-arch:
 	mkdir -p $(CARGO_HOME) $(cli_bindir) $(libdir) $(includedir)
-	cargo build --manifest-path Cargo.toml --release --locked --offline
+	LIBBZ2_SKIP_VERSION_SCRIPT=1 cargo build --manifest-path Cargo.toml --release --locked --offline
 	install -m 0755 $(CARGO_TARGET_DIR)/release/libbz2.so $(libdir)/libbz2.so.1.0.4
 	ln -sfn libbz2.so.1.0.4 $(libdir)/libbz2.so.1.0
 	install -m 0644 $(CARGO_TARGET_DIR)/release/libbz2.a $(libdir)/libbz2.a

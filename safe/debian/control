@@ -8,6 +8,8 @@ Build-Depends-Indep: texinfo,
                      docbook2x,
                      xsltproc
 Standards-Version: 4.6.0
+Vcs-Browser: https://salsa.debian.org/debian/bzip2
+Vcs-Git: https://salsa.debian.org/debian/bzip2.git
 Homepage: https://sourceware.org/bzip2/
 
 Package: libbz2-1.0
@@ -18,10 +20,18 @@ Depends: ${misc:Depends},
          ${shlibs:Depends}
 Pre-Depends: ${misc:Pre-Depends}
 Description: high-quality block-sorting file compressor library - runtime
- This package contains the drop-in libbzip2 runtime library built from the
- safe Rust port.
+ This package contains libbzip2 which is used by the bzip2 compressor.
  .
  bzip2 is a freely available, patent free, data compressor.
+ .
+ bzip2 compresses files using the Burrows-Wheeler block-sorting text
+ compression algorithm, and Huffman coding.  Compression is generally
+ considerably better than that achieved by more conventional
+ LZ77/LZ78-based compressors, and approaches the performance of the PPM
+ family of statistical compressors.
+ .
+ The archive file format of bzip2 (.bz2) is incompatible with that of its
+ predecessor, bzip (.bz).
 
 Package: libbz2-dev
 Architecture: any
@@ -34,9 +44,18 @@ Depends: ${misc:Depends},
 Recommends: bzip2-doc
 Replaces: bzip2 (<< 0.9.5d-3)
 Description: high-quality block-sorting file compressor library - development
- Static libraries and include files for the libbzip2-compatible Rust port.
+ Static libraries and include files for the bzip2 compressor library.
  .
  bzip2 is a freely available, patent free, data compressor.
+ .
+ bzip2 compresses files using the Burrows-Wheeler block-sorting text
+ compression algorithm, and Huffman coding.  Compression is generally
+ considerably better than that achieved by more conventional
+ LZ77/LZ78-based compressors, and approaches the performance of the PPM
+ family of statistical compressors.
+ .
+ The archive file format of bzip2 (.bz2) is incompatible with that of its
+ predecessor, bzip (.bz).
 
 Package: bzip2
 Architecture: any
@@ -48,10 +67,16 @@ Depends: ${misc:Depends},
 Suggests: bzip2-doc
 Replaces: libbz2 (<< 0.9.5d-3)
 Description: high-quality block-sorting file compressor - utilities
- This package carries the upstream command line tools rebuilt against the safe
- Rust libbzip2 implementation.
- .
  bzip2 is a freely available, patent free, data compressor.
+ .
+ bzip2 compresses files using the Burrows-Wheeler block-sorting text
+ compression algorithm, and Huffman coding.  Compression is generally
+ considerably better than that achieved by more conventional
+ LZ77/LZ78-based compressors, and approaches the performance of the PPM
+ family of statistical compressors.
+ .
+ The archive file format of bzip2 (.bz2) is incompatible with that of its
+ predecessor, bzip (.bz).
 
 Package: bzip2-doc
 Architecture: all
@@ -65,3 +90,12 @@ Description: high-quality block-sorting file compressor - documentation
  formats.
  .
  bzip2 is a freely available, patent free, data compressor.
+ .
+ bzip2 compresses files using the Burrows-Wheeler block-sorting text
+ compression algorithm, and Huffman coding.  Compression is generally
+ considerably better than that achieved by more conventional
+ LZ77/LZ78-based compressors, and approaches the performance of the PPM
+ family of statistical compressors.
+ .
+ The archive file format of bzip2 (.bz2) is incompatible with that of its
+ predecessor, bzip (.bz).

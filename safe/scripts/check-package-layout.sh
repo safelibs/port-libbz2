@@ -43,6 +43,10 @@ require_symlink_target() {
 [[ -n "$(lookup_manifest_value "version")" ]] || die "package manifest is missing a version entry"
 shopt -s nullglob
 
+[[ ! -e "$SRC/target" ]] || {
+  die "unexpected staged Cargo target tree copied into $SRC; safe/scripts/build-debs.sh should stage source files only"
+}
+
 for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
   deb_name="$(lookup_manifest_value "package:$pkg")"
   [[ -f "$OUT/$deb_name" ]] || die "required package artifact missing from $OUT: $deb_name"
@@ -50,6 +54,7 @@ for pkg in libbz2-1.0 libbz2-dev bzip2 bzip2-doc; do
 done
 
 require_file "$SRC/debian/control"
+require_file "$SRC/debian/bzip2-doc.doc-base"
 require_file "$SRC/manual.texi"
 require_file "$SRC/bzip2.info"
 
@@ -110,4 +115,4 @@ while read -r field path; do
       require_file "$UNPACKED/bzip2-doc$path"
       ;;
   esac
-done < <(awk '/^(Index|Files): / { print $1, $2 }' "$ROOT/safe/debian/bzip2-doc.doc-base")
+done < <(awk '/^(Index|Files): / { print $1, $2 }' "$SRC/debian/bzip2-doc.doc-base")

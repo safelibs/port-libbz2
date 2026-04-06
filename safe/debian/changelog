@@ -5,5 +5,9 @@ bzip2 (1.0.8-5.1build0.1+safelibs1) unstable; urgency=medium
     installed safe packages.
   * Refresh the package harness and downstream smoke tests to consume the
     generated .deb artifacts under target/package/out.
+  * Keep the staged Debian build compatible with Ubuntu 24.04's Rust toolchain
+    while preserving the drop-in SONAME and package split.
+  * Stage only checked-in packaging sources into target/package/src so host
+    cargo build output does not leak into the Debian source tree.
 
  -- SafeLibs Automation <safelibs@example.invalid>  Thu, 01 Jan 1970 00:00:00 +0000

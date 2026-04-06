@@ -16,6 +16,14 @@ const EXPECTED_DEPENDENTS: &[&str] = &[
     "libfreetype6",
     "gstreamer1.0-plugins-good",
 ];
+const EXPECTED_AUTOPKGTESTS: &[&str] = &[
+    "link-with-shared",
+    "bigfile",
+    "bzexe-test",
+    "compare",
+    "compress",
+    "grep",
+];
 
 fn repo_path(path: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -39,6 +47,14 @@ fn extract_binary_packages(json: &str) -> Vec<String> {
                     .to_string(),
             )
         })
+        .collect()
+}
+
+fn extract_autopkgtests(control: &str) -> Vec<String> {
+    control
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("Tests: "))
+        .flat_map(|tests| tests.split_whitespace().map(str::to_string))
         .collect()
 }
 
@@ -89,14 +105,13 @@ fn release_gate_keeps_runtime_and_compile_compatibility_split_explicit() {
     }
 
     let debian_control = read_repo_text("safe/debian/tests/control");
-    assert_contains(
-        &debian_control,
-        "Tests: link-with-shared",
-        "safe/debian/tests/control",
-    );
-    assert_contains(
-        &debian_control,
-        "Tests: bigfile bzexe-test compare compress grep",
+    let expected_tests = EXPECTED_AUTOPKGTESTS
+        .iter()
+        .map(|entry| entry.to_string())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        extract_autopkgtests(&debian_control),
+        expected_tests,
         "safe/debian/tests/control",
     );
 }
@@ -128,6 +143,11 @@ fn package_consumers_fail_fast_on_missing_current_debs() {
     assert_contains(
         &layout,
         "required package artifact missing from $OUT",
+        "safe/scripts/check-package-layout.sh",
+    );
+    assert_contains(
+        &layout,
+        "unexpected staged Cargo target tree copied into $SRC",
         "safe/scripts/check-package-layout.sh",
     );
 

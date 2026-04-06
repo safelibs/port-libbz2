@@ -22,6 +22,23 @@ require_file() {
   [[ -f "$1" ]] || die "missing required file: $1"
 }
 
+stage_safe_tree() {
+  tar -C "$ROOT/safe" \
+    --exclude='./target' \
+    --exclude='./debian/.debhelper' \
+    --exclude='./debian/tmp' \
+    --exclude='./debian/files' \
+    --exclude='./debian/debhelper-build-stamp' \
+    --exclude='./debian/cargo-home' \
+    --exclude='./debian/*.debhelper.log' \
+    --exclude='./debian/*.substvars' \
+    --exclude='./debian/libbz2-1.0' \
+    --exclude='./debian/libbz2-dev' \
+    --exclude='./debian/bzip2' \
+    --exclude='./debian/bzip2-doc' \
+    -cf - . | tar -C "$SRC" -xf -
+}
+
 copy_stage_asset() {
   local source="$1"
   local dest="$2"
@@ -46,6 +63,7 @@ lookup_manifest_value() {
 require_tool docker
 require_tool dpkg-deb
 require_tool python3
+require_tool tar
 
 [[ -d "$ROOT/safe" ]] || die "missing safe/ source tree"
 [[ -d "$ROOT/original" ]] || die "missing original/ source tree"
@@ -78,7 +96,7 @@ done
 
 rm -rf "$PACKAGE_ROOT"
 mkdir -p "$SRC" "$OUT" "$UNPACKED"
-cp -a "$ROOT/safe/." "$SRC/"
+stage_safe_tree
 
 copy_stage_asset "$ROOT/original/bzip2.c" "$SRC/bzip2.c"
 copy_stage_asset "$ROOT/original/bzip2recover.c" "$SRC/bzip2recover.c"
