@@ -64,6 +64,11 @@ normalize_undefined() {
   readelf -Ws "$object_path" | awk '$7 == "UND" { print $8 }' | sed '/^$/d' | sort -u
 }
 
+normalize_bz2_undefined() {
+  local object_path="$1"
+  readelf -Ws "$object_path" | awk '$7 == "UND" && $8 ~ /^BZ2_/ { print $8 }' | sed '/^$/d' | sort -u
+}
+
 normalize_def_exports() {
   local def_path="$1"
   awk '
@@ -149,6 +154,7 @@ require_symlink_target "$BASELINE/libbz2.so" "libbz2.so.1.0"
 
 PUBLIC_API_OBJECT="$BASELINE/public_api_test.o"
 CLI_OBJECT="$BASELINE/bzip2.o"
+DLLTEST_OBJECT="$BASELINE/dlltest.o"
 
 normalize_exports "$BASELINE/libbz2.so.1.0.4" > "$tmpdir/original.exports.txt"
 normalize_soname "$BASELINE/libbz2.so.1.0.4" > "$tmpdir/original.soname.txt"
@@ -177,18 +183,36 @@ compare_file "$ABI_DIR/original.exports.txt" "$tmpdir/safe.exports.txt" "safe ex
 compare_file "$ABI_DIR/original.soname.txt" "$tmpdir/safe.soname.txt" "safe soname"
 
 if (( strict )); then
+  cat > "$tmpdir/original.dlltest_bz2_undefined.txt.expected" <<'EOF'
+BZ2_bzRead
+BZ2_bzReadClose
+BZ2_bzReadOpen
+BZ2_bzWrite
+BZ2_bzWriteClose
+BZ2_bzWriteOpen
+EOF
+  normalize_bz2_undefined "$DLLTEST_OBJECT" > "$tmpdir/original.dlltest_bz2_undefined.txt"
+
   [[ "$(wc -l < "$tmpdir/safe.exports.txt")" -eq 35 ]] || {
     echo "safe export count mismatch" >&2
     exit 1
   }
   require_line "OBJECT BZ2_crc32Table 1024" "$tmpdir/safe.exports.txt" "ABI data export"
   require_line "OBJECT BZ2_rNums 2048" "$tmpdir/safe.exports.txt" "ABI data export"
+  compare_file \
+    "$tmpdir/original.dlltest_bz2_undefined.txt.expected" \
+    "$tmpdir/original.dlltest_bz2_undefined.txt" \
+    "dlltest.o BZ2 undefineds"
   [[ "$(count_bz2_undefineds "$PUBLIC_API_OBJECT")" -eq 23 ]] || {
     echo "public_api_test.o BZ2 symbol count mismatch" >&2
     exit 1
   }
   [[ "$(count_bz2_undefineds "$CLI_OBJECT")" -eq 8 ]] || {
     echo "bzip2.o BZ2 symbol count mismatch" >&2
+    exit 1
+  }
+  [[ "$(count_bz2_undefineds "$DLLTEST_OBJECT")" -eq 6 ]] || {
+    echo "dlltest.o BZ2 symbol count mismatch" >&2
     exit 1
   }
 fi

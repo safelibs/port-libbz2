@@ -12,6 +12,7 @@ BASELINE="$ROOT/target/original-baseline"
 profile="debug"
 cargo_args=()
 cc_bin="${CC:-gcc}"
+shared_object=""
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -32,9 +33,8 @@ link_object_fixture() {
   "$cc_bin" \
     -o "$output" \
     "$object" \
-    -L"$COMPAT" \
     -Wl,-rpath,'$ORIGIN' \
-    -lbz2
+    "$shared_object"
 }
 
 while (($# > 0)); do
@@ -90,6 +90,8 @@ ln -sfn libbz2.so.1.0.4 "$COMPAT/libbz2.so.1.0"
 ln -sfn libbz2.so.1.0 "$COMPAT/libbz2.so"
 install -m 0644 "$artifact_dir/libbz2.a" "$COMPAT/libbz2.a"
 install -m 0644 "$SAFE_HEADER" "$COMPAT/include/bzlib.h"
+shared_object="$COMPAT/libbz2.so.1.0.4"
+require_file "$shared_object"
 
 # Relink the staged shared object against captured upstream objects so wrapper
 # coverage keeps consuming target/original-baseline instead of source rebuilds.
