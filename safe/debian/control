@@ -1,0 +1,58 @@
+Source: bzip2
+Maintainer: SafeLibs Automation <safelibs@example.invalid>
+Section: utils
+Priority: important
+Build-Depends: debhelper-compat (= 13),
+               cargo,
+               rustc
+Build-Depends-Indep: texinfo,
+                     docbook-xml,
+                     docbook2x,
+                     xsltproc
+Standards-Version: 4.6.0
+Homepage: https://sourceware.org/bzip2/
+
+Package: libbz2-1.0
+Architecture: any
+Multi-Arch: same
+Section: libs
+Depends: ${misc:Depends},
+         ${shlibs:Depends}
+Pre-Depends: ${misc:Pre-Depends}
+Description: high-quality block-sorting file compressor library - runtime
+ This package contains the drop-in libbzip2 runtime library.
+
+Package: libbz2-dev
+Architecture: any
+Multi-Arch: same
+Section: libdevel
+Priority: optional
+Depends: ${misc:Depends},
+         libbz2-1.0 (= ${binary:Version}),
+         libc6-dev | libc-dev
+Recommends: bzip2-doc
+Replaces: bzip2 (<< 0.9.5d-3)
+Description: high-quality block-sorting file compressor library - development
+ Static libraries and include files for the libbzip2-compatible Rust port.
+
+Package: bzip2
+Architecture: any
+Multi-Arch: foreign
+Priority: standard
+Depends: ${misc:Depends},
+         ${shlibs:Depends},
+         libbz2-1.0 (= ${binary:Version})
+Suggests: bzip2-doc
+Replaces: libbz2 (<< 0.9.5d-3)
+Description: high-quality block-sorting file compressor - utilities
+ This package carries the libbzip2-compatible command line tools.
+
+Package: bzip2-doc
+Architecture: all
+Multi-Arch: foreign
+Section: doc
+Priority: optional
+Depends: ${misc:Depends}
+Replaces: bzip2 (<< 1.0.4-0ubuntu2)
+Description: high-quality block-sorting file compressor - documentation
+ This package contains the bzip2 manual in HTML, PDF, PostScript, and Info formats.

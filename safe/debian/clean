@@ -1,0 +1,4 @@
+../target/package
+../target/install
+bzip2.info*
+manual.texi

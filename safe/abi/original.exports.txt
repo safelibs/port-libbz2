@@ -1,0 +1,35 @@
+FUNC BZ2_blockSort
+FUNC BZ2_bsInitWrite
+FUNC BZ2_bzBuffToBuffCompress
+FUNC BZ2_bzBuffToBuffDecompress
+FUNC BZ2_bzCompress
+FUNC BZ2_bzCompressEnd
+FUNC BZ2_bzCompressInit
+FUNC BZ2_bzDecompress
+FUNC BZ2_bzDecompressEnd
+FUNC BZ2_bzDecompressInit
+FUNC BZ2_bzRead
+FUNC BZ2_bzReadClose
+FUNC BZ2_bzReadGetUnused
+FUNC BZ2_bzReadOpen
+FUNC BZ2_bzWrite
+FUNC BZ2_bzWriteClose
+FUNC BZ2_bzWriteClose64
+FUNC BZ2_bzWriteOpen
+FUNC BZ2_bz__AssertH__fail
+FUNC BZ2_bzclose
+FUNC BZ2_bzdopen
+FUNC BZ2_bzerror
+FUNC BZ2_bzflush
+FUNC BZ2_bzlibVersion
+FUNC BZ2_bzopen
+FUNC BZ2_bzread
+FUNC BZ2_bzwrite
+FUNC BZ2_compressBlock
+FUNC BZ2_decompress
+FUNC BZ2_hbAssignCodes
+FUNC BZ2_hbCreateDecodeTables
+FUNC BZ2_hbMakeCodeLengths
+FUNC BZ2_indexIntoF
+OBJECT BZ2_crc32Table 1024
+OBJECT BZ2_rNums 2048

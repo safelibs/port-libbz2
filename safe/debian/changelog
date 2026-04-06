@@ -1,0 +1,8 @@
+bzip2 (1.0.8+safe1-1) unstable; urgency=medium
+
+  * Create the deterministic Rust packaging skeleton.
+  * Reserve the target/original-baseline, target/compat, target/install,
+    target/package, target/bench, and target/security artifact roots.
+  * Build from safe/ via cargo --locked --offline.
+
+ -- SafeLibs Automation <safelibs@example.invalid>  Thu, 01 Jan 1970 00:00:00 +0000

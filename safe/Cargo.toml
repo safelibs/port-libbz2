@@ -1,0 +1,14 @@
+[package]
+name = "libbz2-safe"
+version = "1.0.8+phase1"
+edition = "2021"
+license = "BSD-4-Clause"
+publish = false
+build = "build.rs"
+
+[lib]
+name = "bz2"
+crate-type = ["cdylib", "staticlib", "rlib"]
+
+[profile.release]
+panic = "abort"
