@@ -6,7 +6,6 @@ name: build-debs
 
 on:
   push:
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -118,7 +117,6 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub release
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
