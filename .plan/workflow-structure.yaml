@@ -1,0 +1,100 @@
+linear: true
+yaml_source_mode: inline-only
+verifier_encoding: explicit-phases
+phases:
+  - order: 1
+    id: impl_document_libbz2_port
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/build.rs
+      - safe/src/
+      - safe/tests/
+      - safe/abi/
+      - safe/include/bzlib.h
+      - safe/debian/
+      - safe/scripts/
+      - safe/docs/unsafe-audit.md
+      - dependents.json
+      - relevant_cves.json
+      - all_cves.json
+      - original/
+      - test-original.sh
+  - order: 2
+    id: check_port_md_source_inventory
+    type: check
+    bounce_target: impl_document_libbz2_port
+    required_preexisting_inputs:
+      - safe/PORT.md
+      - safe/Cargo.toml
+      - safe/docs/unsafe-audit.md
+      - safe/src/
+      - safe/tests/
+      - original/
+  - order: 3
+    id: check_port_md_build_abi_and_symbol_grounding
+    type: check
+    bounce_target: impl_document_libbz2_port
+    required_preexisting_inputs:
+      - safe/PORT.md
+      - safe/Cargo.toml
+      - safe/build.rs
+      - safe/abi/
+      - safe/include/bzlib.h
+      - safe/scripts/build-original-baseline.sh
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/link-original-tests.sh
+      - safe/scripts/build-original-cli-against-safe.sh
+      - original/
+  - order: 4
+    id: check_port_md_equivalence_and_remaining_issues
+    type: check
+    bounce_target: impl_document_libbz2_port
+    required_preexisting_inputs:
+      - safe/PORT.md
+      - safe/Cargo.toml
+      - relevant_cves.json
+      - all_cves.json
+      - safe/tests/
+      - safe/scripts/build-original-baseline.sh
+      - safe/scripts/build-safe.sh
+      - safe/scripts/benchmark-compare.sh
+      - safe/scripts/link-original-tests.sh
+      - original/
+  - order: 5
+    id: check_port_md_packaging_and_downstream_evidence
+    type: check
+    bounce_target: impl_document_libbz2_port
+    required_preexisting_inputs:
+      - safe/PORT.md
+      - safe/debian/control
+      - safe/debian/rules
+      - safe/debian/tests/control
+      - safe/tests/dependents.rs
+      - dependents.json
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/run-debian-tests.sh
+      - test-original.sh
+  - order: 6
+    id: check_port_md_final_sanity
+    type: check
+    bounce_target: impl_document_libbz2_port
+    required_preexisting_inputs:
+      - safe/PORT.md
+      - safe/
+      - safe/src/
+      - safe/tests/
+      - safe/docs/unsafe-audit.md
+      - safe/Cargo.toml
+      - safe/debian/control
+      - safe/debian/rules
+      - safe/scripts/
+      - dependents.json
+      - relevant_cves.json
+      - all_cves.json
+      - original/
+      - .git/HEAD
