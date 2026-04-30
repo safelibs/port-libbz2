@@ -8,6 +8,7 @@ OUT="$PACKAGE_ROOT/out"
 UNPACKED="$PACKAGE_ROOT/unpacked"
 MANIFEST="$OUT/package-manifest.txt"
 IMAGE_TAG="${LIBBZ2_DEB_BUILD_IMAGE:-libbz2-safe-deb-build:ubuntu24.04}"
+SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-0}"
 
 die() {
   printf 'error: %s\n' "$*" >&2
@@ -118,6 +119,8 @@ copy_stage_asset "$ROOT/original/debian/bzip2-doc.docs" "$SRC/debian/bzip2-doc.d
 copy_stage_asset "$ROOT/original/debian/bzip2-doc.doc-base" "$SRC/debian/bzip2-doc.doc-base"
 copy_stage_asset "$ROOT/original/debian/bzip2-doc.info" "$SRC/debian/bzip2-doc.info"
 
+find "$SRC" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
+
 find "$PACKAGE_ROOT" -maxdepth 1 -type f \
   \( -name '*.deb' -o -name '*.changes' -o -name '*.buildinfo' \) -delete
 
@@ -147,6 +150,9 @@ DOCKERFILE
 docker run --rm \
   -u "$(id -u):$(id -g)" \
   -e HOME=/tmp/libbz2-safe-build \
+  -e SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
+  -e ZERO_AR_DATE=1 \
+  -e CARGO_INCREMENTAL=0 \
   -v "$ROOT:/work" \
   -w /work/target/package/src \
   "$IMAGE_TAG" \
