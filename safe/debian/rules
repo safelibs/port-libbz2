@@ -12,6 +12,9 @@ export DEB_CFLAGS_MAINT_APPEND := -Wall -Winline
 export DEB_CPPFLAGS_MAINT_APPEND := -D_REENTRANT -D_FILE_OFFSET_BITS=64
 include /usr/share/dpkg/buildflags.mk
 
+export SOURCE_DATE_EPOCH := 0
+export ZERO_AR_DATE := 1
+export CARGO_INCREMENTAL := 0
 export CARGO_HOME := $(CURDIR)/debian/cargo-home
 export CARGO_TARGET_DIR := $(CURDIR)/../cargo
 export SAFE_STAGE := $(CURDIR)/../install/root
@@ -39,6 +42,7 @@ override_dh_auto_build-arch:
 	    --output-dir $(cli_bindir) \
 	    --lib-dir $(CARGO_TARGET_DIR)/release \
 	    --include-dir $(CURDIR)/include
+	find $(SAFE_STAGE) -exec touch -h -d @$(SOURCE_DATE_EPOCH) {} +
 
 ifeq (,$(filter nodoc,$(DEB_BUILD_OPTIONS)))
 .PHONY: override_dh_auto_build-indep
@@ -93,6 +97,7 @@ override_dh_auto_install-arch:
 	cp -a $(cli_bindir)/bzdiff debian/tmp/usr/bin/
 	cp -a $(cli_bindir)/bzgrep debian/tmp/usr/bin/
 	cp -a $(cli_bindir)/bzmore debian/tmp/usr/bin/
+	find debian/tmp -exec touch -h -d @$(SOURCE_DATE_EPOCH) {} +
 
 .PHONY: override_dh_auto_install-indep
 override_dh_auto_install-indep:
