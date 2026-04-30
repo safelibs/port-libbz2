@@ -17,13 +17,13 @@ Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
 
 Canonical packages staged, in lock order:
 
-| Package | Filename | Arch | Size | SHA256 |
-| --- | --- | --- | ---: | --- |
-| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183444 | `d5a0f2bfbfed8e889840af6681c84ecccf7b1a5ce5bb4b6a4eb08486d305b1f3` |
-| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8579914 | `ca350e3b8d2b4153530a82de7711093af0142f79494c92ed14badcb990bb8501` |
-| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35080 | `e87e2f066463618d4df26064e9e1450c5bdaa9a53d01f8591443efcf51b95ce3` |
+| Package | Filename | Arch |
+| --- | --- | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
 
-`bzip2-doc_*.deb` was not copied. `unported_original_packages` is `[]`.
+The current `local-port-debs-lock.json` is the authoritative source for staged package sizes and SHA256 values because verifier phases rebuild and restage these `.deb` files. `bzip2-doc_*.deb` was not copied. `unported_original_packages` is `[]`.
 
 ## Commands Executed
 
@@ -260,13 +260,13 @@ Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
 
 Canonical packages staged, in lock order:
 
-| Package | Filename | Arch | Size | SHA256 |
-| --- | --- | --- | ---: | --- |
-| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183626 | `9d6376aae97da7f7d45ba3e40cdb5d6ad5aca742886f3c42b13c84fcd54ebe16` |
-| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580350 | `bafafbc92e1689caf8510d011e79b75d2752038f57564d98231915c84695c58b` |
-| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35080 | `d989856eec30ebb01c7aba2cac1d54f282342193e3720728c158bfd57ac31e04` |
+| Package | Filename | Arch |
+| --- | --- | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
 
-The copied override `.deb` files and `local-port-debs-lock.json` were checked against file names, sizes, and SHA256 values. They describe exactly `libbz2-1.0`, `libbz2-dev`, and `bzip2`; `unported_original_packages` is `[]`.
+The copied override `.deb` files and `local-port-debs-lock.json` were checked against file names, sizes, and SHA256 values. Exact sizes and hashes are intentionally not duplicated in this report because verifier phases rebuild and restage these packages; the current lock is authoritative. The lock describes exactly `libbz2-1.0`, `libbz2-dev`, and `bzip2`; `unported_original_packages` is `[]`.
 
 ## Commands Executed
 
