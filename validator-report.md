@@ -106,3 +106,47 @@ Port mode:
 
 - Port behavior: implement upstream-compatible `verbosity >= 2` compression diagnostics in the Rust compression path, including per-block CRC lines and final combined CRC output.
 - Regression coverage: add a focused test around `BZ2_bzWriteOpen`/`BZ2_bzWriteClose64` or the packaged `bzip2 -vv` path to assert the upstream diagnostic text without weakening stream compatibility tests.
+
+# Fix Source And C API Validator Failures Report
+
+Phase impl_fix_validator_source_api_failures base commit: 809ee857b7c5ba82e62445abdbe51fe30e191646
+
+## Source/API Failure Classification
+
+The current port-mode validator artifacts do not contain source/API failures to reproduce in `safe/tests/`. The five `kind: source` cases named by this phase all passed in both original mode and port mode:
+
+| Testcase | Original result | Port result | Port result/log evidence |
+| --- | --- | --- | --- |
+| `c-api-buffer-roundtrip` | `passed` | `passed` | `validator/artifacts/libbz2-safe/port/results/libbz2/c-api-buffer-roundtrip.json`, `validator/artifacts/libbz2-safe/port/logs/libbz2/c-api-buffer-roundtrip.log` |
+| `cli-compress-decompress` | `passed` | `passed` | `validator/artifacts/libbz2-safe/port/results/libbz2/cli-compress-decompress.json`, `validator/artifacts/libbz2-safe/port/logs/libbz2/cli-compress-decompress.log` |
+| `corrupted-stream-rejection` | `passed` | `passed` | `validator/artifacts/libbz2-safe/port/results/libbz2/corrupted-stream-rejection.json`, `validator/artifacts/libbz2-safe/port/logs/libbz2/corrupted-stream-rejection.log` |
+| `debian-sample-parity` | `passed` | `passed` | `validator/artifacts/libbz2-safe/port/results/libbz2/debian-sample-parity.json`, `validator/artifacts/libbz2-safe/port/logs/libbz2/debian-sample-parity.log` |
+| `stream-concatenation` | `passed` | `passed` | `validator/artifacts/libbz2-safe/port/results/libbz2/stream-concatenation.json`, `validator/artifacts/libbz2-safe/port/logs/libbz2/stream-concatenation.log` |
+
+The matching validator scripts inspected for the classification are under `validator/tests/libbz2/tests/cases/source/`. Their current logs show successful C API buffer round trip, CLI round trip, corrupted-stream rejection, Debian sample parity, and concatenated-stream decompression through the staged port packages.
+
+## Regression Tests And Fixes
+
+- No new `safe/tests/validator_regressions.rs` test was added because there is no failing source/API validator case in the current artifacts.
+- No `safe/src/*`, `safe/include/bzlib.h`, `safe/abi/*`, `safe/debian/*`, or `safe/scripts/*` changes were made in this phase.
+- Existing source/API-adjacent regression coverage remains in `safe/tests/original_port.rs`, `safe/tests/golden_streams.rs`, `safe/tests/malformed_inputs.rs`, and `safe/tests/security_regressions.rs`; these passed as part of the release Cargo suite.
+- Because no source, package, header, ABI, or script change was made, local `.deb` packages and validator artifacts were not rebuilt or restaged in this phase.
+
+## Commands Executed
+
+- `git rev-parse HEAD`
+- `git status --short`
+- Read the five current port source-case result JSON files and the five matching original-mode result JSON files.
+- Read the five source-case scripts under `validator/tests/libbz2/tests/cases/source/`.
+- Read the five current port source-case logs and the five matching original-mode logs.
+- Python source-case comparison over `validator/artifacts/libbz2-safe/{results,port/results}/libbz2/*.json`
+- Python remaining-failure summary over `validator/artifacts/libbz2-safe/port/results/libbz2/*.json`
+- `git -C validator status --short`
+- `cargo test --manifest-path safe/Cargo.toml --release`
+
+## Result Status
+
+- Release Cargo suite: passed.
+- Validator checkout status: clean.
+- Source/API validator status: no current source/API failures; all five source cases passed in original and port artifacts.
+- Remaining port validator failure: `usage-bzip2-vv-double-verbose` (`kind: usage`), already documented in the bootstrap report as a verbose CLI diagnostics gap and outside the source/API scope of this phase.
