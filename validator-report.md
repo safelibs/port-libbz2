@@ -179,13 +179,13 @@ Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
 
 Canonical packages staged, in lock order:
 
-| Package | Filename | Arch | Size | SHA256 |
-| --- | --- | --- | ---: | --- |
-| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183652 | `6ac8db8ae2077a23cde21266fc1c426bd7ccc0c557f514cf326d5e93c5fe98d8` |
-| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580362 | `2dd330e345e471f886cf4f7f43c361840d7c1165b7d24dbbe1222f2f53bee7be` |
-| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35074 | `4ed2f952243fb726a0f040b7f40a6c574e03b0399dae8ef383a76bdb764dc234` |
+| Package | Filename | Arch |
+| --- | --- | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
 
-`bzip2-doc_*.deb` was rebuilt in `target/package/out/` but was not copied into the validator override root. `unported_original_packages` is `[]`.
+The lock file is the authoritative source for package sizes and SHA256 values because verifier phases rebuild and restage these `.deb` files. A lock/package consistency check confirmed the copied files and `local-port-debs-lock.json` describe the same three canonical packages. `bzip2-doc_*.deb` was rebuilt in `target/package/out/` but was not copied into the validator override root. `unported_original_packages` is `[]`.
 
 ## Commands Executed
 
