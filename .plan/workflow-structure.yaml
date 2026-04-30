@@ -3,98 +3,382 @@ yaml_source_mode: inline-only
 verifier_encoding: explicit-phases
 phases:
   - order: 1
-    id: impl_document_libbz2_port
+    id: impl_validator_bootstrap_and_initial_run
     type: implement
     bounce_target: null
     required_preexisting_inputs:
+      - safe/
+      - original/
       - safe/Cargo.toml
       - safe/Cargo.lock
       - safe/build.rs
       - safe/src/
       - safe/tests/
+      - safe/debian/
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
       - safe/abi/
       - safe/include/bzlib.h
-      - safe/debian/
-      - safe/scripts/
-      - safe/docs/unsafe-audit.md
-      - dependents.json
-      - relevant_cves.json
-      - all_cves.json
-      - original/
-      - test-original.sh
+      - target/original-baseline/
+      - target/compat/
+      - target/package/out/
   - order: 2
-    id: check_port_md_source_inventory
+    id: check_initial_validator_run_software_tester
     type: check
-    bounce_target: impl_document_libbz2_port
+    bounce_target: impl_validator_bootstrap_and_initial_run
     required_preexisting_inputs:
-      - safe/PORT.md
-      - safe/Cargo.toml
-      - safe/docs/unsafe-audit.md
-      - safe/src/
-      - safe/tests/
-      - original/
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/testcases.py
+      - validator/tools/verify_proof_artifacts.py
+      - safe/scripts/stage-validator-debs.sh
+      - validator-report.md
+      - validator/artifacts/libbz2-safe/debs/local/libbz2/
+      - validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
   - order: 3
-    id: check_port_md_build_abi_and_symbol_grounding
+    id: check_initial_validator_run_senior_tester
     type: check
-    bounce_target: impl_document_libbz2_port
+    bounce_target: impl_validator_bootstrap_and_initial_run
     required_preexisting_inputs:
-      - safe/PORT.md
-      - safe/Cargo.toml
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/
+      - validator/scripts/
+      - validator/unit/
+      - validator/test.sh
+      - safe/scripts/stage-validator-debs.sh
+      - validator-report.md
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/logs/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+  - order: 4
+    id: impl_fix_validator_source_api_failures
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tests/libbz2/tests/cases/source/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
+      - safe/scripts/stage-validator-debs.sh
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/logs/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+      - safe/src/ffi.rs
+      - safe/src/compress.rs
+      - safe/src/decompress.rs
+      - safe/src/stdio.rs
+      - safe/src/types.rs
+      - safe/src/blocksort.rs
+      - safe/src/huffman.rs
+      - safe/src/crc.rs
+      - safe/src/rand.rs
+      - safe/src/alloc.rs
+      - safe/src/constants.rs
+      - safe/tests/
       - safe/build.rs
       - safe/abi/
       - safe/include/bzlib.h
-      - safe/scripts/build-original-baseline.sh
+      - original/
+      - target/original-baseline/
+      - target/compat/
+      - target/package/out/
+  - order: 5
+    id: check_source_api_regressions_software_tester
+    type: check
+    bounce_target: impl_fix_validator_source_api_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/tests/
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/stage-validator-debs.sh
+      - validator/artifacts/libbz2-safe/debs/local/libbz2/
+      - validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+  - order: 6
+    id: check_source_api_senior_tester
+    type: check
+    bounce_target: impl_fix_validator_source_api_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/
+      - validator/scripts/
+      - validator/unit/
+      - validator/test.sh
+      - validator-report.md
+      - safe/src/
+      - safe/tests/
+      - safe/debian/
+      - safe/include/bzlib.h
+      - safe/abi/
+      - safe/scripts/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+  - order: 7
+    id: impl_fix_validator_cli_usage_failures
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tests/libbz2/tests/cases/usage/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
+      - safe/scripts/stage-validator-debs.sh
       - safe/scripts/build-safe.sh
       - safe/scripts/check-abi.sh
       - safe/scripts/link-original-tests.sh
       - safe/scripts/build-original-cli-against-safe.sh
-      - original/
-  - order: 4
-    id: check_port_md_equivalence_and_remaining_issues
-    type: check
-    bounce_target: impl_document_libbz2_port
-    required_preexisting_inputs:
-      - safe/PORT.md
-      - safe/Cargo.toml
-      - relevant_cves.json
-      - all_cves.json
-      - safe/tests/
-      - safe/scripts/build-original-baseline.sh
-      - safe/scripts/build-safe.sh
-      - safe/scripts/benchmark-compare.sh
-      - safe/scripts/link-original-tests.sh
-      - original/
-  - order: 5
-    id: check_port_md_packaging_and_downstream_evidence
-    type: check
-    bounce_target: impl_document_libbz2_port
-    required_preexisting_inputs:
-      - safe/PORT.md
-      - safe/debian/control
-      - safe/debian/rules
-      - safe/debian/tests/control
-      - safe/tests/dependents.rs
-      - dependents.json
       - safe/scripts/build-debs.sh
       - safe/scripts/check-package-layout.sh
       - safe/scripts/run-debian-tests.sh
-      - test-original.sh
-  - order: 6
-    id: check_port_md_final_sanity
-    type: check
-    bounce_target: impl_document_libbz2_port
-    required_preexisting_inputs:
-      - safe/PORT.md
-      - safe/
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/logs/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+      - safe/debian/
+      - original/bzip2.c
+      - original/bzip2recover.c
+      - original/bzdiff
+      - original/bzgrep
+      - original/bzmore
       - safe/src/
       - safe/tests/
-      - safe/docs/unsafe-audit.md
+      - target/original-baseline/
+      - target/compat/
+      - target/package/out/
+  - order: 8
+    id: check_cli_usage_regressions_software_tester
+    type: check
+    bounce_target: impl_fix_validator_cli_usage_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
       - safe/Cargo.toml
-      - safe/debian/control
-      - safe/debian/rules
+      - safe/Cargo.lock
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/link-original-tests.sh
+      - safe/scripts/build-original-cli-against-safe.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/run-debian-tests.sh
+      - safe/scripts/stage-validator-debs.sh
+      - validator/artifacts/libbz2-safe/debs/local/libbz2/
+      - validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+  - order: 9
+    id: check_cli_usage_senior_tester
+    type: check
+    bounce_target: impl_fix_validator_cli_usage_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/
+      - validator/scripts/
+      - validator/unit/
+      - validator/test.sh
+      - validator-report.md
+      - safe/src/
+      - safe/tests/
+      - safe/debian/
       - safe/scripts/
-      - dependents.json
-      - relevant_cves.json
-      - all_cves.json
-      - original/
-      - .git/HEAD
+      - target/package/out/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+  - order: 10
+    id: impl_fix_validator_remaining_failures
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
+      - safe/scripts/stage-validator-debs.sh
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/run-full-suite.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/logs/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+      - safe/src/
+      - safe/tests/
+      - safe/scripts/
+      - safe/debian/
+      - safe/abi/
+      - safe/include/bzlib.h
+      - target/original-baseline/
+      - target/compat/
+      - target/package/out/
+      - target/package/unpacked/
+  - order: 11
+    id: check_remaining_validator_failures_software_tester
+    type: check
+    bounce_target: impl_fix_validator_remaining_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/test.sh
+      - validator/tools/verify_proof_artifacts.py
+      - validator-report.md
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/run-full-suite.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/stage-validator-debs.sh
+      - validator/artifacts/libbz2-safe/debs/local/libbz2/
+      - validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+  - order: 12
+    id: check_remaining_validator_failures_senior_tester
+    type: check
+    bounce_target: impl_fix_validator_remaining_failures
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/
+      - validator/scripts/
+      - validator/unit/
+      - validator/test.sh
+      - validator-report.md
+      - safe/
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/logs/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/logs/libbz2/
+  - order: 13
+    id: impl_finalize_validator_report
+    type: implement
+    bounce_target: null
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/unit/
+      - validator/test.sh
+      - validator/tools/testcases.py
+      - validator/tools/verify_proof_artifacts.py
+      - validator/tools/render_site.py
+      - validator/scripts/verify-site.sh
+      - validator-report.md
+      - safe/scripts/stage-validator-debs.sh
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/link-original-tests.sh
+      - safe/scripts/build-original-cli-against-safe.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/run-debian-tests.sh
+      - validator/artifacts/libbz2-safe/
+      - target/original-baseline/
+      - target/compat/
+      - target/package/out/
+      - target/package/unpacked/
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/build.rs
+      - safe/src/
+      - safe/tests/
+      - safe/debian/
+      - safe/abi/
+      - safe/include/bzlib.h
+  - order: 14
+    id: check_final_validator_clean_run
+    type: check
+    bounce_target: impl_finalize_validator_report
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/unit/
+      - validator/test.sh
+      - validator/tools/testcases.py
+      - validator/tools/verify_proof_artifacts.py
+      - validator/tools/render_site.py
+      - validator/scripts/verify-site.sh
+      - validator-report.md
+      - safe/Cargo.toml
+      - safe/Cargo.lock
+      - safe/scripts/build-safe.sh
+      - safe/scripts/check-abi.sh
+      - safe/scripts/link-original-tests.sh
+      - safe/scripts/build-original-cli-against-safe.sh
+      - safe/scripts/build-debs.sh
+      - safe/scripts/check-package-layout.sh
+      - safe/scripts/run-debian-tests.sh
+      - safe/scripts/stage-validator-debs.sh
+      - validator/artifacts/libbz2-safe/debs/local/libbz2/
+      - validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json
+      - validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json
+      - validator/artifacts/libbz2-safe/results/libbz2/
+      - validator/artifacts/libbz2-safe/port/results/libbz2/
+      - validator/site/libbz2-safe/
+  - order: 15
+    id: check_final_senior_review
+    type: check
+    bounce_target: impl_finalize_validator_report
+    required_preexisting_inputs:
+      - validator/
+      - validator/repositories.yml
+      - validator/tests/
+      - validator/tools/
+      - validator/scripts/
+      - validator/unit/
+      - validator/test.sh
+      - validator-report.md
+      - safe/
+      - validator/artifacts/libbz2-safe/
+      - validator/site/libbz2-safe/
