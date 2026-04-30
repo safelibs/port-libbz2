@@ -7,8 +7,9 @@ Phase impl_finalize_validator_report base commit: c6794e79da28c0465562e8d0df93b3
 ## Final Revisions
 
 - Validator commit: `5d908be26e33f071e119ffe1a52e3149f1e5ec4e`.
-- Safe source commit tested for `target/compat/`, package builds, staged validator overrides, and validator matrices: `c6794e79da28c0465562e8d0df93b3a109dfc602`.
-- The final report commit is expected to be after that tested source commit and changes only `validator-report.md`.
+- Last safe-code commit tested for `target/compat/`, package builds, staged validator overrides, and validator matrices: `7db8d9a1861e3235ee1c1274fe261672cbc870dd`.
+- Phase base commit tested before the report-only update: `c6794e79da28c0465562e8d0df93b3a109dfc602`.
+- `safe/` did not change in this phase. `safe/scripts/stage-validator-debs.sh` records the parent HEAD in `local-port-debs-lock.json`, so verifier restages after report-only commits can update the lock `commit`, `generated_at`, sizes, and SHA256 values without changing the tested safe source.
 - The nested `validator/` checkout stayed clean and was not staged in the parent repository.
 
 ## Final Package Artifacts
@@ -17,15 +18,15 @@ Lock file: `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json`
 
 Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
 
-Lock generated at: `2026-04-30T17:53:01Z`
+Canonical packages staged, in lock order:
 
-| Package | Filename | Arch | Size | SHA256 |
-| --- | --- | --- | ---: | --- |
-| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183648 | `c94290a3426d15f505d80e929faf7545bb652326c8b2df00ee105fd49327bd2f` |
-| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580402 | `1ecbbcb8ea109eb89b18e81eaf71ef3fc5c400f484f64270044fe7d2b542f2b8` |
-| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35080 | `c77a123e04779b44c4ee9f14c276a06d621223c1eb5783bfecbbcb2be92e820a` |
+| Package | Filename | Arch |
+| --- | --- | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
 
-The copied override `.deb` files and `local-port-debs-lock.json` describe the same three canonical packages: `libbz2-1.0`, `libbz2-dev`, and `bzip2`. `unported_original_packages` is `[]`.
+The current `local-port-debs-lock.json` is the authoritative source for staged package sizes and SHA256 values because verifier phases rebuild and restage these `.deb` files after report commits. The copied override `.deb` files and lock describe the same three canonical packages: `libbz2-1.0`, `libbz2-dev`, and `bzip2`. `unported_original_packages` is `[]`.
 
 ## Final Commands Executed
 
