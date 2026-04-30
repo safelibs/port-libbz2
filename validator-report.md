@@ -150,3 +150,85 @@ The matching validator scripts inspected for the classification are under `valid
 - Validator checkout status: clean.
 - Source/API validator status: no current source/API failures; all five source cases passed in original and port artifacts.
 - Remaining port validator failure: `usage-bzip2-vv-double-verbose` (`kind: usage`), already documented in the bootstrap report as a verbose CLI diagnostics gap and outside the source/API scope of this phase.
+
+# Fix CLI, Packaging, And Usage Validator Failures Report
+
+Phase impl_fix_validator_cli_usage_failures base commit: e4f179b08a19ea41b059ea2441a3fcfc6d6bef5b
+
+## Usage Failure Classification
+
+- Current pre-fix port artifacts had one usage failure: `usage-bzip2-vv-double-verbose`.
+- Family: `bzip2` verbose-status behavior. The testcase compresses with `bzip2 -vv -c`, round-trips the output, and requires `block 1`, `crc`, `combined CRC`, and `bits/byte` on stderr.
+- Original-mode comparison: `validator/artifacts/libbz2-safe/results/libbz2/usage-bzip2-vv-double-verbose.json` passed.
+- Port-mode pre-fix evidence: `validator/artifacts/libbz2-safe/port/results/libbz2/usage-bzip2-vv-double-verbose.json` failed before this phase because stderr only contained the final ratio line.
+- Isolated cause: Rust library behavior in `safe/src/compress.rs`. Upstream `original/compress.c` emits per-block CRC accounting and final combined CRC diagnostics from `BZ2_compressBlock` at `verbosity >= 2`; the Rust port tracked the CRC values but did not print those diagnostics.
+- Other CLI/script/package families (`bzcmp`/`bzdiff`, `bzgrep`, `bzmore`/`bzless`, `bzip2recover`, and package layout) had no remaining failed testcase IDs in the refreshed port validator summary.
+
+## Fixes And Regression Coverage
+
+- Source/test fix commit: `7db8d9a1861e3235ee1c1274fe261672cbc870dd` (`fix: restore libbz2 verbose compression diagnostics`).
+- Changed `safe/src/compress.rs` to emit upstream-compatible `block ... crc ... combined CRC ... size` and `final combined CRC` stderr diagnostics from `BZ2_compressBlock` when `verbosity >= 2`.
+- Added `safe/tests/link_contract.rs::relinked_original_bzip2_double_verbose_reports_block_crc`, which rebuilds the original `bzip2` CLI against `target/compat/libbz2.so.1.0.4`, runs `bzip2 -vv -c`, checks the validator-required stderr markers, and round-trips the compressed stream.
+- No `safe/debian/*`, `safe/scripts/*`, `original/*`, or validator testcase/tool files were changed.
+
+## Package Lock
+
+Lock file: `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json`
+
+Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
+
+Canonical packages staged, in lock order:
+
+| Package | Filename | Arch | Size | SHA256 |
+| --- | --- | --- | ---: | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183652 | `6ac8db8ae2077a23cde21266fc1c426bd7ccc0c557f514cf326d5e93c5fe98d8` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580362 | `2dd330e345e471f886cf4f7f43c361840d7c1165b7d24dbbe1222f2f53bee7be` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35074 | `4ed2f952243fb726a0f040b7f40a6c574e03b0399dae8ef383a76bdb764dc234` |
+
+`bzip2-doc_*.deb` was rebuilt in `target/package/out/` but was not copied into the validator override root. `unported_original_packages` is `[]`.
+
+## Commands Executed
+
+- `git rev-parse HEAD`
+- `cargo test --manifest-path safe/Cargo.toml --release relinked_original_bzip2_double_verbose_reports_block_crc -- --nocapture`
+- `git commit -m "fix: restore libbz2 verbose compression diagnostics"`
+- `cargo test --manifest-path safe/Cargo.toml --release`
+- `bash safe/scripts/build-safe.sh --release`
+- `bash safe/scripts/check-abi.sh --strict`
+- `bash safe/scripts/link-original-tests.sh --all`
+- `bash safe/scripts/build-original-cli-against-safe.sh --run-samples`
+- `bash safe/scripts/build-debs.sh`
+- `bash safe/scripts/check-package-layout.sh`
+- `bash safe/scripts/run-debian-tests.sh --tests link-with-shared bigfile bzexe-test compare compress grep`
+- `bash safe/scripts/stage-validator-debs.sh`
+- Python lock/package consistency check over `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json` and `validator/artifacts/libbz2-safe/debs/local/libbz2/*.deb`
+- `cd validator && bash test.sh --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --mode port --override-deb-root artifacts/libbz2-safe/debs/local --port-deb-lock artifacts/libbz2-safe/proof/local-port-debs-lock.json --library libbz2 --record-casts`
+- `cd validator && python3 tools/verify_proof_artifacts.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-output proof/libbz2-port-validation-proof.json --mode port --library libbz2 --require-casts --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- Python remaining-failure summary over `validator/artifacts/libbz2-safe/port/results/libbz2/*.json`
+- `git -C validator status --short`
+- `git -C validator diff -- tests tools scripts unit inventory repositories.yml test.sh conftest.py Makefile README.md`
+
+## Validator Outcomes
+
+- Focused regression test: passed.
+- Release Cargo suite: passed.
+- ABI strict check: passed.
+- Relinked original object tests: passed.
+- Relinked original CLI sample checks: passed.
+- Package build, layout check, and selected Debian tests: passed.
+- Validator checkout status: clean, with no diffs under testcase/tool/manifests checked by the senior tester command.
+- Refreshed port result for fixed case: `validator/artifacts/libbz2-safe/port/results/libbz2/usage-bzip2-vv-double-verbose.json` now has `"status": "passed"` and `"exit_code": 0`.
+- Fixed-case log evidence: `validator/artifacts/libbz2-safe/port/logs/libbz2/usage-bzip2-vv-double-verbose.log`.
+- Port proof: `validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json`.
+
+## Final Port Summary
+
+- Summary path: `validator/artifacts/libbz2-safe/port/results/libbz2/summary.json`
+- Mode: `port`
+- Cases: 135
+- Source cases: 5
+- Usage cases: 130
+- Passed: 135
+- Failed: 0
+- Casts: 135
+- Remaining failed testcase IDs: none.
