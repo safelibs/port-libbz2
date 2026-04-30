@@ -7,9 +7,10 @@ Phase impl_finalize_validator_report base commit: c6794e79da28c0465562e8d0df93b3
 ## Final Revisions
 
 - Validator commit: `5d908be26e33f071e119ffe1a52e3149f1e5ec4e`.
-- Last safe-code commit tested for `target/compat/`, package builds, staged validator overrides, and validator matrices: `7db8d9a1861e3235ee1c1274fe261672cbc870dd`.
+- Safe source/package commit tested for deterministic package builds and staged validator overrides: `754a01c91b5c150b9b1c5b2c034d403818867233`.
+- Last runtime safe-code commit tested by the final validator matrices: `7db8d9a1861e3235ee1c1274fe261672cbc870dd`.
 - Phase base commit tested before the report-only update: `c6794e79da28c0465562e8d0df93b3a109dfc602`.
-- `safe/` did not change in this phase. `safe/scripts/stage-validator-debs.sh` records the parent HEAD in `local-port-debs-lock.json`, so verifier restages after report-only commits can update the lock `commit`, `generated_at`, sizes, and SHA256 values without changing the tested safe source.
+- `safe/scripts/stage-validator-debs.sh` records the parent HEAD in `local-port-debs-lock.json`. Package payloads were made reproducible so verifier restages after report-only commits keep the package sizes and SHA256 values listed below.
 - The nested `validator/` checkout stayed clean and was not staged in the parent repository.
 
 ## Final Package Artifacts
@@ -20,13 +21,13 @@ Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
 
 Canonical packages staged, in lock order:
 
-| Package | Filename | Arch |
-| --- | --- | --- |
-| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
-| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
-| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` |
+| Package | Filename | Arch | Size | SHA256 |
+| --- | --- | --- | ---: | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183604 | `aec3c7a24020b1cc3e79cfdc00f7f9205bf05ad4b408507b8db39808e40dea78` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580376 | `91f4575a534bfd5218404fff2ee6fa3488f9758a76525a9c0ad5029cd0ccb0a0` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35044 | `0ea68edb77a3c52c9c3c2796ddfac2332d663c63fe6937fe685d9ff765fbbe9b` |
 
-The current `local-port-debs-lock.json` is the authoritative source for staged package sizes and SHA256 values because verifier phases rebuild and restage these `.deb` files after report commits. The copied override `.deb` files and lock describe the same three canonical packages: `libbz2-1.0`, `libbz2-dev`, and `bzip2`. `unported_original_packages` is `[]`.
+The copied override `.deb` files and `local-port-debs-lock.json` describe the same three canonical packages: `libbz2-1.0`, `libbz2-dev`, and `bzip2`. Two consecutive rebuild and restage cycles produced the same sizes and SHA256 values above. `unported_original_packages` is `[]`.
 
 ## Final Commands Executed
 
@@ -41,6 +42,7 @@ The current `local-port-debs-lock.json` is the authoritative source for staged p
 - `bash safe/scripts/build-original-cli-against-safe.sh --run-samples`
 - `bash safe/scripts/build-debs.sh`
 - `bash safe/scripts/check-package-layout.sh`
+- `bash safe/scripts/build-debs.sh` again after forcing reproducible package payload mtimes, followed by `bash safe/scripts/stage-validator-debs.sh`, to confirm stable package SHA256 values across consecutive rebuilds.
 - `bash safe/scripts/run-debian-tests.sh --tests link-with-shared bigfile bzexe-test compare compress grep`
 - `bash safe/scripts/stage-validator-debs.sh`
 - `find validator/artifacts/libbz2-safe/debs/local/libbz2 -maxdepth 1 -type f -name '*.deb' | sort`
@@ -83,7 +85,7 @@ Review site:
 - Final clean run status: passed. Both original and port modes have the required 135 results and zero non-passing cases.
 - Failures found during finalization: no safelib-caused validator regression and no validator-bug skip.
 - Skipped validator bugs: none. There are intentionally no validator-bug skip marker lines in this report.
-- Fixes applied in this phase: no `safe/`, package, or validator-suite source changes. This phase only refreshed final evidence and updates this report.
+- Fixes applied in this phase: committed refreshed `target/original-baseline/` generated artifacts so the parent worktree is clean; updated `safe/scripts/build-debs.sh` and `safe/debian/rules` to force reproducible package payload mtimes and stable package SHA256 values; updated this report.
 - Fixes present in the tested history: validator package staging helper, neutral local validator provenance, and `safe/src/compress.rs` verbose compression diagnostics compatibility.
 - Regression tests added in this phase: none, because the final run found no new regression. Existing regression coverage in the tested source includes `safe/tests/link_contract.rs::relinked_original_bzip2_double_verbose_reports_block_crc` for the previously fixed `bzip2 -vv` diagnostic case.
 
