@@ -1,4 +1,90 @@
-# Validator Bootstrap And Initial Run Report
+# libbz2 Validator Report
+
+# Finalize Validator Evidence And Report
+
+Phase impl_finalize_validator_report base commit: c6794e79da28c0465562e8d0df93b3a109dfc602
+
+## Final Revisions
+
+- Validator commit: `5d908be26e33f071e119ffe1a52e3149f1e5ec4e`.
+- Safe source commit tested for `target/compat/`, package builds, staged validator overrides, and validator matrices: `c6794e79da28c0465562e8d0df93b3a109dfc602`.
+- The final report commit is expected to be after that tested source commit and changes only `validator-report.md`.
+- The nested `validator/` checkout stayed clean and was not staged in the parent repository.
+
+## Final Package Artifacts
+
+Lock file: `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json`
+
+Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
+
+Lock generated at: `2026-04-30T17:53:01Z`
+
+| Package | Filename | Arch | Size | SHA256 |
+| --- | --- | --- | ---: | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183648 | `c94290a3426d15f505d80e929faf7545bb652326c8b2df00ee105fd49327bd2f` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580402 | `1ecbbcb8ea109eb89b18e81eaf71ef3fc5c400f484f64270044fe7d2b542f2b8` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35080 | `c77a123e04779b44c4ee9f14c276a06d621223c1eb5783bfecbbcb2be92e820a` |
+
+The copied override `.deb` files and `local-port-debs-lock.json` describe the same three canonical packages: `libbz2-1.0`, `libbz2-dev`, and `bzip2`. `unported_original_packages` is `[]`.
+
+## Final Commands Executed
+
+- `git rev-parse HEAD`
+- `git status --short`
+- `git -C validator rev-parse HEAD`
+- `git -C validator status --short`
+- `cargo test --manifest-path safe/Cargo.toml --release`
+- `bash safe/scripts/build-safe.sh --release`
+- `bash safe/scripts/check-abi.sh --strict`
+- `bash safe/scripts/link-original-tests.sh --all`
+- `bash safe/scripts/build-original-cli-against-safe.sh --run-samples`
+- `bash safe/scripts/build-debs.sh`
+- `bash safe/scripts/check-package-layout.sh`
+- `bash safe/scripts/run-debian-tests.sh --tests link-with-shared bigfile bzexe-test compare compress grep`
+- `bash safe/scripts/stage-validator-debs.sh`
+- `find validator/artifacts/libbz2-safe/debs/local/libbz2 -maxdepth 1 -type f -name '*.deb' | sort`
+- `test "$(find validator/artifacts/libbz2-safe/debs/local/libbz2 -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 3`
+- `test -f validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json`
+- Short Python lock/package consistency check over `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json` and copied `.deb` files. An initial ad hoc version assumed an obsolete top-level `packages` field and failed locally; the schema-aware check against `libraries[0].debs` passed without modifying artifacts.
+- `python3 validator/tools/testcases.py --config validator/repositories.yml --tests-root validator/tests --check --library libbz2 --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- `cd validator && python3 -m unittest discover -s unit -v`
+- `cd validator && bash test.sh --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --mode original --library libbz2 --record-casts`
+- `cd validator && python3 tools/verify_proof_artifacts.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-output proof/libbz2-original-validation-proof.json --mode original --library libbz2 --require-casts --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- `cd validator && bash test.sh --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --mode port --override-deb-root artifacts/libbz2-safe/debs/local --port-deb-lock artifacts/libbz2-safe/proof/local-port-debs-lock.json --library libbz2 --record-casts`
+- `cd validator && python3 tools/verify_proof_artifacts.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-output proof/libbz2-port-validation-proof.json --mode port --library libbz2 --require-casts --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- `cd validator && python3 tools/render_site.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-path artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json --proof-path artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json --output-root site/libbz2-safe`
+- `cd validator && bash scripts/verify-site.sh --config repositories.yml --tests-root tests --artifacts-root artifacts/libbz2-safe --proof-path artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json --proof-path artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json --site-root site/libbz2-safe --library libbz2`
+- Final clean-result Python assertion over `validator-report.md`, `validator/artifacts/libbz2-safe/results/libbz2/*.json`, and `validator/artifacts/libbz2-safe/port/results/libbz2/*.json`.
+
+## Final Validator Outcomes
+
+Original mode:
+
+- Summary path: `validator/artifacts/libbz2-safe/results/libbz2/summary.json`
+- Proof path: `validator/artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json`
+- Cases: 135 total, 5 source, 130 usage.
+- Result: 135 passed, 0 failed, 135 casts recorded.
+
+Port mode:
+
+- Summary path: `validator/artifacts/libbz2-safe/port/results/libbz2/summary.json`
+- Proof path: `validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json`
+- Cases: 135 total, 5 source, 130 usage.
+- Result: 135 passed, 0 failed, 135 casts recorded.
+
+Review site:
+
+- Rendered site: `validator/site/libbz2-safe/`
+- `validator/scripts/verify-site.sh` passed against both final proofs.
+
+## Final Failure And Fix Summary
+
+- Final clean run status: passed. Both original and port modes have the required 135 results and zero non-passing cases.
+- Failures found during finalization: no safelib-caused validator regression and no validator-bug skip.
+- Skipped validator bugs: none. There are intentionally no validator-bug skip marker lines in this report.
+- Fixes applied in this phase: no `safe/`, package, or validator-suite source changes. This phase only refreshed final evidence and updates this report.
+- Fixes present in the tested history: validator package staging helper, neutral local validator provenance, and `safe/src/compress.rs` verbose compression diagnostics compatibility.
+- Regression tests added in this phase: none, because the final run found no new regression. Existing regression coverage in the tested source includes `safe/tests/link_contract.rs::relinked_original_bzip2_double_verbose_reports_block_crc` for the previously fixed `bzip2 -vv` diagnostic case.
 
 Phase impl_validator_bootstrap_and_initial_run base commit: fab3f69085c81ed94cf3f7bc19cfdacbe03609b6
 
