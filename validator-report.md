@@ -232,3 +232,82 @@ The lock file is the authoritative source for package sizes and SHA256 values be
 - Failed: 0
 - Casts: 135
 - Remaining failed testcase IDs: none.
+
+# Fix Remaining Safety Or Compatibility Failures Report
+
+Phase impl_fix_validator_remaining_failures base commit: f7ba86618ace872601ead029d216044002a7ed67
+
+## Remaining Failure Extraction
+
+- Re-extracted current per-case statuses from `validator/artifacts/libbz2-safe/port/results/libbz2/*.json`.
+- Port mode currently has 135 `passed` case JSON files and no failed testcase IDs.
+- Matching original mode currently has 135 `passed` case JSON files and no failed testcase IDs.
+- The previously fixed `usage-bzip2-vv-double-verbose` result remains passed in refreshed artifacts: `validator/artifacts/libbz2-safe/port/results/libbz2/usage-bzip2-vv-double-verbose.json`.
+
+## Fixes, Skips, And Blocks
+
+- No new safelib-caused failures remained for this phase, so no additional `safe/src/*`, `safe/tests/*`, `safe/debian/*`, or `safe/scripts/*` edits were required.
+- Existing regression coverage for the prior validator failure remains `safe/tests/link_contract.rs::relinked_original_bzip2_double_verbose_reports_block_crc`; the full release Cargo suite passed in this phase.
+- Validator-bug skips: none.
+- Environmental limitations: none encountered.
+- Validator checkout status: clean; no diffs under validator testcase/tool/manifests checked by `git -C validator diff -- tests tools scripts unit inventory repositories.yml test.sh conftest.py Makefile README.md`.
+
+## Package Lock
+
+Lock file: `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json`
+
+Staged override root: `validator/artifacts/libbz2-safe/debs/local/libbz2/`
+
+Canonical packages staged, in lock order:
+
+| Package | Filename | Arch | Size | SHA256 |
+| --- | --- | --- | ---: | --- |
+| `libbz2-1.0` | `libbz2-1.0_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 183626 | `9d6376aae97da7f7d45ba3e40cdb5d6ad5aca742886f3c42b13c84fcd54ebe16` |
+| `libbz2-dev` | `libbz2-dev_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 8580350 | `bafafbc92e1689caf8510d011e79b75d2752038f57564d98231915c84695c58b` |
+| `bzip2` | `bzip2_1.0.8-5.1build0.1+safelibs1_amd64.deb` | `amd64` | 35080 | `d989856eec30ebb01c7aba2cac1d54f282342193e3720728c158bfd57ac31e04` |
+
+The copied override `.deb` files and `local-port-debs-lock.json` were checked against file names, sizes, and SHA256 values. They describe exactly `libbz2-1.0`, `libbz2-dev`, and `bzip2`; `unported_original_packages` is `[]`.
+
+## Commands Executed
+
+- `git rev-parse HEAD`
+- Python failure summary over `validator/artifacts/libbz2-safe/{results,port/results}/libbz2/*.json`
+- `cargo test --manifest-path safe/Cargo.toml --release`
+- `bash safe/scripts/build-safe.sh --release`
+- `bash safe/scripts/check-abi.sh --strict`
+- `bash safe/scripts/build-debs.sh`
+- `bash safe/scripts/check-package-layout.sh`
+- `bash safe/scripts/stage-validator-debs.sh`
+- Python lock/package consistency check over `validator/artifacts/libbz2-safe/proof/local-port-debs-lock.json` and `validator/artifacts/libbz2-safe/debs/local/libbz2/*.deb`
+- `cd validator && bash test.sh --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --mode original --library libbz2 --record-casts`
+- `cd validator && python3 tools/verify_proof_artifacts.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-output proof/libbz2-original-validation-proof.json --mode original --library libbz2 --require-casts --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- `cd validator && bash test.sh --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --mode port --override-deb-root artifacts/libbz2-safe/debs/local --port-deb-lock artifacts/libbz2-safe/proof/local-port-debs-lock.json --library libbz2 --record-casts`
+- `cd validator && python3 tools/verify_proof_artifacts.py --config repositories.yml --tests-root tests --artifact-root artifacts/libbz2-safe --proof-output proof/libbz2-port-validation-proof.json --mode port --library libbz2 --require-casts --min-source-cases 5 --min-usage-cases 130 --min-cases 135`
+- Python remaining-failure summary over refreshed original and port result JSON files
+- `git -C validator status --short`
+- `git -C validator diff -- tests tools scripts unit inventory repositories.yml test.sh conftest.py Makefile README.md`
+
+## Validator Outcomes
+
+Original mode:
+
+- Summary path: `validator/artifacts/libbz2-safe/results/libbz2/summary.json`
+- Cases: 135
+- Source cases: 5
+- Usage cases: 130
+- Passed: 135
+- Failed: 0
+- Casts: 135
+- Proof: `validator/artifacts/libbz2-safe/proof/libbz2-original-validation-proof.json`
+
+Port mode:
+
+- Summary path: `validator/artifacts/libbz2-safe/port/results/libbz2/summary.json`
+- Cases: 135
+- Source cases: 5
+- Usage cases: 130
+- Passed: 135
+- Failed: 0
+- Casts: 135
+- Proof: `validator/artifacts/libbz2-safe/proof/libbz2-port-validation-proof.json`
+- Remaining failed testcase IDs: none.
