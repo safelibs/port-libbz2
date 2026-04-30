@@ -121,6 +121,16 @@ fn assert_same_file(actual: &Path, expected: &Path) {
     );
 }
 
+fn assert_success(output: &std::process::Output, context: &str) {
+    assert!(
+        output.status.success(),
+        "{} failed\nstdout:\n{}\nstderr:\n{}",
+        context,
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 #[test]
 fn selected_object_files_still_match_captured_undefined_sets() {
     let repo = repo_root();
@@ -255,4 +265,53 @@ fn source_and_object_link_contracts_run_against_the_safe_library() {
         "bash",
         &["safe/scripts/link-original-tests.sh", "--all"],
     );
+}
+
+#[test]
+fn relinked_original_bzip2_double_verbose_reports_block_crc() {
+    let _guard = BUILD_LOCK.lock().unwrap();
+    let repo = repo_root();
+    let compat = repo.join("target/compat");
+    let bzip2 = compat.join("bzip2");
+    let ld_library_path = compat_ld_library_path(&compat);
+
+    run(&repo, "bash", &["safe/scripts/build-safe.sh", "--release"]);
+    run(
+        &repo,
+        "bash",
+        &["safe/scripts/build-original-cli-against-safe.sh"],
+    );
+
+    let tmpdir = temp_dir(&repo, "bzip2-vv");
+    let input = tmpdir.join("in.txt");
+    let compressed = tmpdir.join("in.bz2");
+    let payload = b"vv-verbose payload row\n".repeat(64);
+    fs::write(&input, &payload).unwrap();
+
+    let compress = Command::new(&bzip2)
+        .current_dir(&repo)
+        .env("LD_LIBRARY_PATH", &ld_library_path)
+        .args(["-vv", "-c"])
+        .arg(&input)
+        .stdout(Stdio::from(File::create(&compressed).unwrap()))
+        .output()
+        .unwrap();
+    assert_success(&compress, "run relinked bzip2 -vv -c");
+    let stderr = String::from_utf8_lossy(&compress.stderr);
+    assert!(stderr.contains("block 1"), "{stderr}");
+    assert!(stderr.contains("crc = 0x"), "{stderr}");
+    assert!(stderr.contains("combined CRC"), "{stderr}");
+    assert!(stderr.contains("bits/byte"), "{stderr}");
+
+    let decompress = Command::new(&bzip2)
+        .current_dir(&repo)
+        .env("LD_LIBRARY_PATH", &ld_library_path)
+        .args(["-dc"])
+        .arg(&compressed)
+        .output()
+        .unwrap();
+    assert_success(&decompress, "run relinked bzip2 -dc");
+    assert_eq!(decompress.stdout, payload);
+
+    let _ = fs::remove_dir_all(&tmpdir);
 }

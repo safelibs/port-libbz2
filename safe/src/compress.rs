@@ -11,7 +11,7 @@ use crate::constants::{
 };
 use crate::crc::{bz_crc_finalize, bz_crc_init, bz_crc_update};
 use crate::huffman::{BZ2_hbAssignCodes, BZ2_hbMakeCodeLengths};
-use crate::types::{bz_stream, stream_state, Bool, EState, Int32, UChar, UInt16, UInt32};
+use crate::types::{bz_stream, stream_state, Bool, CFile, EState, Int32, UChar, UInt16, UInt32};
 use core::mem::size_of;
 use std::os::raw::{c_char, c_int};
 use std::{ptr, slice};
@@ -23,11 +23,16 @@ const BZ_HDR_0: Int32 = 0x30;
 const BZ_LESSER_ICOST: UChar = 0;
 const BZ_GREATER_ICOST: UChar = 15;
 const MAX_HUFFMAN_LEN: Int32 = 17;
+static BLOCK_VERBOSE_FORMAT: &[u8] =
+    b"    block %d: crc = 0x%08x, combined CRC = 0x%08x, size = %d\n\0";
+static FINAL_CRC_VERBOSE_FORMAT: &[u8] = b"    final combined CRC = 0x%08x\n   \0";
 
 extern "C" {
     fn malloc(size: usize) -> *mut core::ffi::c_void;
     fn free(ptr: *mut core::ffi::c_void);
+    fn fprintf(stream: *mut CFile, format: *const c_char, ...) -> c_int;
     fn BZ2_bz__AssertH__fail(errcode: c_int);
+    static mut stderr: *mut CFile;
 }
 
 #[inline]
@@ -758,6 +763,16 @@ pub unsafe extern "C" fn BZ2_compressBlock(state: *mut EState, is_last_block: Bo
         if s.blockNo > 1 {
             s.numZ = 0;
         }
+        if s.verbosity >= 2 {
+            let _ = fprintf(
+                stderr,
+                BLOCK_VERBOSE_FORMAT.as_ptr().cast(),
+                s.blockNo,
+                s.blockCRC,
+                s.combinedCRC,
+                s.nblock,
+            );
+        }
         BZ2_blockSort(state);
     }
 
@@ -789,6 +804,13 @@ pub unsafe extern "C" fn BZ2_compressBlock(state: *mut EState, is_last_block: Bo
             bsPutUChar(s, byte);
         }
         bsPutUInt32(s, s.combinedCRC);
+        if s.verbosity >= 2 {
+            let _ = fprintf(
+                stderr,
+                FINAL_CRC_VERBOSE_FORMAT.as_ptr().cast(),
+                s.combinedCRC,
+            );
+        }
         bsFinishWrite(s);
     }
 }
