@@ -7,8 +7,8 @@ ARTIFACT_ROOT="$ROOT/validator/artifacts/libbz2-safe"
 DEB_DEST="$ARTIFACT_ROOT/debs/local/libbz2"
 PROOF_DIR="$ARTIFACT_ROOT/proof"
 LOCK_PATH="$PROOF_DIR/local-port-debs-lock.json"
-REPOSITORY="local/libbz2-safe"
-RELEASE_TAG="local-libbz2-safe"
+REPOSITORY="local/libbz2-port"
+RELEASE_TAG="local-libbz2-port"
 CANONICAL_PACKAGES=(libbz2-1.0 libbz2-dev bzip2)
 
 die() {
